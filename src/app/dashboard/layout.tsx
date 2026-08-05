@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,7 +13,6 @@ import {
   Settings,
   LogOut,
   ChevronsUpDown,
-  Store,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -113,9 +113,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="flex items-center gap-2 px-3 h-14 border-b">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Store className="size-4" />
-          </div>
+          <Image
+            src="/logo.jpg"
+            alt="Mobile Corner"
+            width={28}
+            height={28}
+            className="size-7 shrink-0 rounded-full object-cover"
+          />
           {!collapsed && (
             <div className="leading-tight min-w-0">
               <p className="font-semibold text-sm truncate">Mobile Corner</p>

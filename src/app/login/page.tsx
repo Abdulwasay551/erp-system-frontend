@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,8 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
-        <CardHeader>
+        <CardHeader className="items-center text-center">
+          <Image src="/logo.jpg" alt="Mobile Corner" width={64} height={64} className="rounded-full mb-2" />
           <CardTitle>Mobile Corner ERP</CardTitle>
           <CardDescription>Sign in to your shop account</CardDescription>
         </CardHeader>
