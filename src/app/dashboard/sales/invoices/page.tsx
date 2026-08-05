@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Receipt } from "lucide-react";
+import { FileText, Receipt, Undo2, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -69,6 +69,22 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+const RETURN_REASONS = [
+  { value: "return", label: "Product Return" },
+  { value: "damage", label: "Damaged Goods" },
+  { value: "error", label: "Billing Error" },
+  { value: "other", label: "Other" },
+];
+
+interface ReturnableItem {
+  invoice_item_id: number;
+  product_name: string;
+  tracking_id: number | null;
+  tracking_identifier: string | null;
+  unit_price: string;
+  returnable_quantity: string;
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -79,6 +95,14 @@ export default function InvoicesPage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [paying, setPaying] = useState(false);
+
+  const [returnFor, setReturnFor] = useState<Invoice | null>(null);
+  const [returnableItems, setReturnableItems] = useState<ReturnableItem[]>([]);
+  const [loadingReturnable, setLoadingReturnable] = useState(false);
+  const [selected, setSelected] = useState<Record<number, { checked: boolean; quantity: string }>>({});
+  const [returnReason, setReturnReason] = useState("return");
+  const [returnNotes, setReturnNotes] = useState("");
+  const [processingReturn, setProcessingReturn] = useState(false);
 
   function load() {
     api<Invoice[]>("/api/sales/invoices/").then(setInvoices).catch(() => {});
@@ -119,6 +143,73 @@ export default function InvoicesPage() {
       toast.error(e instanceof ApiError ? e.message : "Failed to record payment.");
     } finally {
       setPaying(false);
+    }
+  }
+
+  async function openReturn(inv: Invoice) {
+    setReturnFor(inv);
+    setReturnReason("return");
+    setReturnNotes("");
+    setSelected({});
+    setLoadingReturnable(true);
+    try {
+      const items = await api<ReturnableItem[]>(`/api/sales/invoices/${inv.id}/returnable-items/`);
+      setReturnableItems(items);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load returnable items.");
+      setReturnableItems([]);
+    } finally {
+      setLoadingReturnable(false);
+    }
+  }
+
+  function toggleSelected(item: ReturnableItem) {
+    setSelected((prev) => {
+      const current = prev[item.invoice_item_id];
+      if (current?.checked) {
+        const next = { ...prev };
+        delete next[item.invoice_item_id];
+        return next;
+      }
+      return { ...prev, [item.invoice_item_id]: { checked: true, quantity: item.returnable_quantity } };
+    });
+  }
+
+  function setSelectedQuantity(invoiceItemId: number, quantity: string) {
+    setSelected((prev) => ({ ...prev, [invoiceItemId]: { checked: true, quantity } }));
+  }
+
+  async function submitReturn() {
+    if (!returnFor) return;
+    const items = returnableItems
+      .filter((item) => selected[item.invoice_item_id]?.checked)
+      .map((item) => ({
+        invoice_item_id: item.invoice_item_id,
+        tracking_id: item.tracking_id ?? undefined,
+        quantity: item.tracking_id ? undefined : selected[item.invoice_item_id]?.quantity,
+      }));
+    if (items.length === 0) {
+      toast.error("Select at least one item to return.");
+      return;
+    }
+    setProcessingReturn(true);
+    try {
+      const result = await api<{ credit_number: string; total: string }>("/api/sales/returns/process/", {
+        method: "POST",
+        body: JSON.stringify({
+          invoice_id: returnFor.id,
+          items,
+          reason: returnReason,
+          notes: returnNotes || undefined,
+        }),
+      });
+      toast.success(`${result.credit_number} recorded - Rs. ${result.total} refunded to ${returnFor.customer_name}.`);
+      setReturnFor(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to process return.");
+    } finally {
+      setProcessingReturn(false);
     }
   }
 
@@ -294,6 +385,91 @@ export default function InvoicesPage() {
                         </DialogContent>
                       </Dialog>
                     )}
+
+                    <Dialog open={returnFor?.id === inv.id} onOpenChange={(open) => !open && setReturnFor(null)}>
+                      <DialogTrigger
+                        render={
+                          <Button variant="outline" size="sm" onClick={() => openReturn(inv)}>
+                            <Undo2 className="size-3.5" /> Return
+                          </Button>
+                        }
+                      />
+                      <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                          <DialogTitle>Process Return - {inv.invoice_number}</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-3">
+                          {loadingReturnable ? (
+                            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                              <Loader2 className="size-4 animate-spin" /> Loading returnable items...
+                            </div>
+                          ) : returnableItems.length === 0 ? (
+                            <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                              Nothing left to return on this invoice.
+                            </p>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {returnableItems.map((item) => (
+                                <label
+                                  key={item.invoice_item_id}
+                                  className="flex items-center gap-3 rounded-md border p-2.5 text-sm cursor-pointer hover:bg-accent"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selected[item.invoice_item_id]?.checked}
+                                    onChange={() => toggleSelected(item)}
+                                    className="size-4"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-medium">{item.product_name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {item.tracking_identifier ? `IMEI/Serial: ${item.tracking_identifier}` : `Rs. ${item.unit_price} each`}
+                                    </p>
+                                  </div>
+                                  {!item.tracking_id && (
+                                    <Input
+                                      className="w-20"
+                                      value={selected[item.invoice_item_id]?.quantity ?? item.returnable_quantity}
+                                      onChange={(e) => setSelectedQuantity(item.invoice_item_id, e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      disabled={!selected[item.invoice_item_id]?.checked}
+                                      inputMode="decimal"
+                                    />
+                                  )}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex flex-col gap-2">
+                            <Label>Reason</Label>
+                            <Select
+                              items={Object.fromEntries(RETURN_REASONS.map((r) => [r.value, r.label]))}
+                              value={returnReason}
+                              onValueChange={(v) => v && setReturnReason(v)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {RETURN_REASONS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>
+                                    {r.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label>Notes (optional)</Label>
+                            <Input value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} />
+                          </div>
+                          <Button onClick={submitReturn} disabled={processingReturn || returnableItems.length === 0}>
+                            {processingReturn ? "Processing..." : "Process Return"}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
                 </TableRow>
               ))}
