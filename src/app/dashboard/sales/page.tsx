@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModuleLinkCard } from "@/components/module-link-card";
 
@@ -15,7 +16,9 @@ export default function SalesModulePage() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    api<Stats>("/api/analytics/dashboard/").then(setStats).catch(() => {});
+    api<Stats>("/api/analytics/dashboard/")
+      .then(setStats)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load stats."));
   }, []);
 
   return (

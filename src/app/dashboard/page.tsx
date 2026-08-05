@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Trophy } from "lucide-react";
+import { LoadingState, ErrorState } from "@/components/data-state";
 
 interface DashboardStats {
   todays_sales_total: string;
@@ -48,20 +50,32 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(null);
     api<DashboardStats>("/api/analytics/dashboard/")
       .then(setStats)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load dashboard."));
-    api<TopProduct[]>("/api/analytics/top-products/?days=30&limit=5").then(setTopProducts).catch(() => {});
-    api<LowStockItem[]>("/api/analytics/low-stock-items/").then(setLowStock).catch(() => {});
-  }, []);
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load dashboard."))
+      .finally(() => setLoading(false));
+    api<TopProduct[]>("/api/analytics/top-products/?days=30&limit=5")
+      .then(setTopProducts)
+      .catch(() => toast.error("Failed to load top products."));
+    api<LowStockItem[]>("/api/analytics/low-stock-items/")
+      .then(setLowStock)
+      .catch(() => toast.error("Failed to load low stock items."));
+  }
+
+  useEffect(load, []);
+
+  if (loading) return <LoadingState label="Loading dashboard..." />;
+  if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Dashboard</h1>
-      {error && <p className="text-sm text-destructive">{error}</p>}
       {stats && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           <StatCard label="Today's Sales" value={`Rs. ${stats.todays_sales_total}`} />

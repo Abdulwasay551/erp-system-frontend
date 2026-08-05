@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Package, FilePlus2, PackageOpen } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ModuleLinkCard } from "@/components/module-link-card";
@@ -17,7 +18,9 @@ export default function InventoryModulePage() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    api<Stats>("/api/analytics/dashboard/").then(setStats).catch(() => {});
+    api<Stats>("/api/analytics/dashboard/")
+      .then(setStats)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load stats."));
   }, []);
 
   return (

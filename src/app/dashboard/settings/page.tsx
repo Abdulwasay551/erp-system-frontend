@@ -78,7 +78,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadUsers();
-    api<Role[]>("/api/auth/roles/").then(setRoles).catch(() => {});
+    api<Role[]>("/api/auth/roles/")
+      .then(setRoles)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load roles."));
   }, []);
 
   async function addUser() {

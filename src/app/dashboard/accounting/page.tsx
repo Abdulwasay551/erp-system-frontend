@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { LineChart, Receipt } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { ModuleLinkCard } from "@/components/module-link-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,7 +20,7 @@ export default function AccountingModulePage() {
   useEffect(() => {
     api<ProfitTotals>("/api/analytics/profit-report/?days=30")
       .then((data) => setTotals(data.totals))
-      .catch(() => {});
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load profit summary."));
   }, []);
 
   const netProfit = totals ? Number(totals.net_profit) : 0;

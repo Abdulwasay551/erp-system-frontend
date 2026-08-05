@@ -44,11 +44,15 @@ export default function PendingReceiptsPage() {
   const [pending, setPending] = useState<PendingBill[] | null>(null);
 
   const loadPending = useCallback(() => {
-    api<PendingBill[]>("/api/purchase/bills/pending-receipt/").then(setPending).catch(() => {});
+    api<PendingBill[]>("/api/purchase/bills/pending-receipt/")
+      .then(setPending)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load pending receipts."));
   }, []);
 
   useEffect(() => {
-    api<Warehouse[]>("/api/inventory/warehouses/").then(setWarehouses).catch(() => {});
+    api<Warehouse[]>("/api/inventory/warehouses/")
+      .then(setWarehouses)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load warehouses."));
     loadPending();
   }, [loadPending]);
 

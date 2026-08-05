@@ -78,8 +78,12 @@ export default function ExpensesPage() {
 
   function load() {
     const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-    api<Expense[]>("/api/accounting/expenses/").then(setExpenses).catch(() => {});
-    api<Summary>(`/api/accounting/expenses/summary/?month=${month}`).then(setSummary).catch(() => {});
+    api<Expense[]>("/api/accounting/expenses/")
+      .then(setExpenses)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expenses."));
+    api<Summary>(`/api/accounting/expenses/summary/?month=${month}`)
+      .then(setSummary)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expense summary."));
   }
 
   useEffect(load, []);

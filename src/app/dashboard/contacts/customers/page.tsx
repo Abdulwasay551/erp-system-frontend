@@ -81,7 +81,9 @@ export default function CustomersPage() {
 
   function loadCustomers(q?: string) {
     const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-    api<Customer[]>(`/api/crm/customers/${qs}`).then(setCustomers).catch(() => {});
+    api<Customer[]>(`/api/crm/customers/${qs}`)
+      .then(setCustomers)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load customers."));
   }
 
   useEffect(loadCustomers, []);

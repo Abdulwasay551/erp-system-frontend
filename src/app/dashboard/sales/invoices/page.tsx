@@ -105,7 +105,9 @@ export default function InvoicesPage() {
   const [processingReturn, setProcessingReturn] = useState(false);
 
   function load() {
-    api<Invoice[]>("/api/sales/invoices/").then(setInvoices).catch(() => {});
+    api<Invoice[]>("/api/sales/invoices/")
+      .then(setInvoices)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load invoices."));
   }
 
   useEffect(load, []);

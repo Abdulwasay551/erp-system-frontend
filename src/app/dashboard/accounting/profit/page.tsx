@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { BarChart } from "@/components/charts/bar-chart";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { LoadingState, ErrorState } from "@/components/data-state";
 
 interface DayRow {
   date: string;
@@ -74,10 +75,19 @@ function StatCard({
 export default function ProfitAndLossPage() {
   const [period, setPeriod] = useState("30");
   const [report, setReport] = useState<ProfitReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api<ProfitReport>(`/api/analytics/profit-report/?days=${period}`).then(setReport).catch(() => {});
-  }, [period]);
+  function load() {
+    setLoading(true);
+    setError(null);
+    api<ProfitReport>(`/api/analytics/profit-report/?days=${period}`)
+      .then(setReport)
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load profit report."))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, [period]);
 
   const netProfit = report ? Number(report.totals.net_profit) : 0;
 
@@ -105,6 +115,9 @@ export default function ProfitAndLossPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {loading && <LoadingState label="Loading profit report..." />}
+      {error && <ErrorState message={error} onRetry={load} />}
 
       {report && (
         <>

@@ -90,7 +90,9 @@ export default function SuppliersPage() {
 
   function loadSuppliers(q?: string) {
     const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-    api<Supplier[]>(`/api/purchase/suppliers/${qs}`).then(setSuppliers).catch(() => {});
+    api<Supplier[]>(`/api/purchase/suppliers/${qs}`)
+      .then(setSuppliers)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load suppliers."));
   }
 
   useEffect(loadSuppliers, []);

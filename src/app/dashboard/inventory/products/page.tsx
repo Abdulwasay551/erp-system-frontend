@@ -81,15 +81,17 @@ export default function ProductsPage() {
     const qs = search ? `?search=${encodeURIComponent(search)}` : "";
     api<Product[] | { results: Product[] }>(`/api/products/products/${qs}`)
       .then((data) => setProducts(Array.isArray(data) ? data : data.results))
-      .catch(() => {});
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load products."));
   }
 
   useEffect(() => {
     loadProducts();
-    api<VendorStockRow[]>("/api/products/tracking/stock-by-vendor/").then(setVendorStock).catch(() => {});
+    api<VendorStockRow[]>("/api/products/tracking/stock-by-vendor/")
+      .then(setVendorStock)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load vendor stock."));
     api<Category[] | { results: Category[] }>("/api/products/categories/")
       .then((data) => setCategories(Array.isArray(data) ? data : data.results))
-      .catch(() => {});
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load categories."));
   }, []);
 
   function resetForm() {
