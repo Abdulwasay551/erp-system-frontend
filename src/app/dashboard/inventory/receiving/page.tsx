@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, PackageOpen } from "lucide-react";
+import { FilePlus2, PackageOpen, ListOrdered } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { ModuleLinkCard } from "@/components/module-link-card";
@@ -46,6 +46,12 @@ export default function ReceivingHubPage() {
               <Badge variant="default">{pendingCount} waiting</Badge>
             ) : undefined
           }
+        />
+        <ModuleLinkCard
+          href="/dashboard/inventory/receiving/all"
+          icon={ListOrdered}
+          title="All Vendor Bills"
+          description="Browse every bill on record, received or still pending."
         />
       </div>
     </div>

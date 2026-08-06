@@ -106,8 +106,8 @@ export default function ProductsPage() {
   }
 
   async function addProduct() {
-    if (!name.trim() || !sku.trim()) {
-      toast.error("Name and SKU are required.");
+    if (!name.trim()) {
+      toast.error("Name is required.");
       return;
     }
     setSaving(true);
@@ -117,7 +117,7 @@ export default function ProductsPage() {
         body: JSON.stringify({
           name,
           brand,
-          sku,
+          sku: sku.trim() || undefined,
           barcode: barcode || null,
           category: categoryId ? Number(categoryId) : null,
           tracking_method: trackingMethod,
@@ -169,8 +169,8 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-2">
-                  <Label>SKU</Label>
-                  <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. IPH-15-128" />
+                  <Label>SKU (optional)</Label>
+                  <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Auto-generated if left blank" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Category (optional)</Label>

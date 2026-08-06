@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiError, openPdf } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,6 +105,10 @@ export default function InvoicesPage() {
 
   const [downloadingPdfFor, setDownloadingPdfFor] = useState<number | null>(null);
 
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("highlight");
+  const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+
   const [returnFor, setReturnFor] = useState<Invoice | null>(null);
   const [returnableItems, setReturnableItems] = useState<ReturnableItem[]>([]);
   const [loadingReturnable, setLoadingReturnable] = useState(false);
@@ -119,6 +124,12 @@ export default function InvoicesPage() {
   }
 
   useEffect(load, []);
+
+  useEffect(() => {
+    if (highlightId && invoices.length > 0) {
+      rowRefs.current[Number(highlightId)]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, invoices]);
 
   function openPay(inv: Invoice) {
     setPayFor(inv);
@@ -292,7 +303,13 @@ export default function InvoicesPage() {
                 </TableRow>
               )}
               {filtered.map((inv) => (
-                <TableRow key={inv.id}>
+                <TableRow
+                  key={inv.id}
+                  ref={(el) => {
+                    rowRefs.current[inv.id] = el;
+                  }}
+                  className={highlightId && Number(highlightId) === inv.id ? "bg-primary/10 transition-colors" : undefined}
+                >
                   <TableCell className="font-medium">{inv.invoice_number}</TableCell>
                   <TableCell>{inv.customer_name}</TableCell>
                   <TableCell>{inv.invoice_date}</TableCell>

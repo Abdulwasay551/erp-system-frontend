@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { api, ApiError, openPdf } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ interface LedgerEntry {
   id: number;
   transaction_date: string;
   reference_type: string;
+  reference_id: number;
   description: string;
   debit_amount: string;
   credit_amount: string;
@@ -334,7 +336,7 @@ export default function SuppliersPage() {
                           </Button>
                         }
                       />
-                      <DialogContent className="max-w-3xl">
+                      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>{s.name} - Ledger</DialogTitle>
                         </DialogHeader>
@@ -378,6 +380,7 @@ export default function SuppliersPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead>Ref</TableHead>
                               <TableHead>Date</TableHead>
                               <TableHead>Description</TableHead>
                               <TableHead className="text-right">Debit</TableHead>
@@ -388,7 +391,7 @@ export default function SuppliersPage() {
                           <TableBody>
                             {ledger?.results.length === 0 && (
                               <TableRow>
-                                <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                                <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
                                   No ledger entries in this range.
                                 </TableCell>
                               </TableRow>
@@ -404,6 +407,20 @@ export default function SuppliersPage() {
                                       : undefined
                                 }
                               >
+                                <TableCell>
+                                  {e.reference_type === "bill" ? (
+                                    <Link
+                                      href={`/dashboard/inventory/receiving/all?highlight=${e.reference_id}`}
+                                      className="text-primary underline underline-offset-2 text-xs font-medium"
+                                    >
+                                      Bill
+                                    </Link>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground capitalize">
+                                      {e.reference_type.replace("_", " ")}
+                                    </span>
+                                  )}
+                                </TableCell>
                                 <TableCell>{e.transaction_date}</TableCell>
                                 <TableCell>{e.description}</TableCell>
                                 <TableCell className="text-right text-red-700 dark:text-red-400">

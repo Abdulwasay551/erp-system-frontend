@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError, API_BASE_URL } from "@/lib/api";
+import { api, ApiError, openPdf } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/searchable-select";
-import { UserRound } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { UserRound, Download } from "lucide-react";
 
 interface Customer {
   id: number;
@@ -60,8 +67,6 @@ interface CheckoutResponse {
   total: string;
   paid_amount: string;
   outstanding_amount: string;
-  pdf_url: string | null;
-  pdf_error: string | null;
 }
 
 const PAYMENT_METHODS = [
@@ -83,10 +88,14 @@ export default function POSPage() {
   const [customerSearching, setCustomerSearching] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [discount, setDiscount] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<CheckoutResponse | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const cartTotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
+  const discountAmount = Math.min(Math.max(Number(discount) || 0, 0), cartSubtotal);
+  const cartTotal = cartSubtotal - discountAmount;
 
   async function searchCustomers(q: string) {
     setCustomerSearching(true);
@@ -164,6 +173,7 @@ export default function POSPage() {
           quantity: l.tracking_id ? undefined : l.quantity,
           unit_price: l.unit_price,
         })),
+        discount_amount: discountAmount || undefined,
         payment: {
           method: paymentMethod,
           amount: cartTotal,
@@ -177,6 +187,7 @@ export default function POSPage() {
       setLastInvoice(result);
       setCart([]);
       setPaymentReference("");
+      setDiscount("");
       setCustomerId(null);
       setCustomerOptions([]);
       toast.success(`Invoice ${result.invoice_number} created.`);
@@ -309,7 +320,23 @@ export default function POSPage() {
             <CardTitle className="text-sm">Payment</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-lg font-semibold">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Subtotal</span>
+              <span>Rs. {cartSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm font-medium">Discount</Label>
+              <Input
+                type="number"
+                min={0}
+                max={cartSubtotal}
+                inputMode="decimal"
+                placeholder="0.00"
+                value={discount}
+                onChange={(e) => setDiscount(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between text-lg font-semibold border-t pt-3">
               <span>Total</span>
               <span>Rs. {cartTotal.toFixed(2)}</span>
             </div>
@@ -377,16 +404,45 @@ export default function POSPage() {
                 <span className="text-muted-foreground">Outstanding: </span>Rs.{" "}
                 {lastInvoice.outstanding_amount}
               </p>
-              {lastInvoice.pdf_url && (
-                <a
-                  href={`${API_BASE_URL}${lastInvoice.pdf_url}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline mt-2"
-                >
-                  Open PDF
-                </a>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="mt-2 w-fit" disabled={downloadingPdf}>
+                      <Download className="size-3.5" /> {downloadingPdf ? "Generating..." : "Open PDF"}
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      setDownloadingPdf(true);
+                      try {
+                        await openPdf(`/api/sales/invoices/${lastInvoice.invoice_id}/pdf/?size=mini`);
+                      } catch {
+                        toast.error("Failed to generate invoice PDF.");
+                      } finally {
+                        setDownloadingPdf(false);
+                      }
+                    }}
+                  >
+                    Mini receipt (billing machine)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      setDownloadingPdf(true);
+                      try {
+                        await openPdf(`/api/sales/invoices/${lastInvoice.invoice_id}/pdf/?size=a4`);
+                      } catch {
+                        toast.error("Failed to generate invoice PDF.");
+                      } finally {
+                        setDownloadingPdf(false);
+                      }
+                    }}
+                  >
+                    A4 invoice (printer)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </CardContent>
           </Card>
         )}
