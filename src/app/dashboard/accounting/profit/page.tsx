@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { BarChart } from "@/components/charts/bar-chart";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { LoadingState, ErrorState } from "@/components/data-state";
+import { ErrorState, StatCardSkeletonGrid } from "@/components/data-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DayRow {
   date: string;
@@ -116,24 +117,46 @@ export default function ProfitAndLossPage() {
         </Select>
       </div>
 
-      {loading && <LoadingState label="Loading profit report..." />}
+      {loading && (
+        <div className="flex flex-col gap-6">
+          <StatCardSkeletonGrid count={5} />
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-4 w-40" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[220px] w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {error && <ErrorState message={error} onRetry={load} />}
 
       {report && (
         <>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-            <StatCard label="Revenue" value={money(report.totals.revenue)} />
-            <StatCard label="Cost of Goods" value={money(report.totals.cogs)} />
-            <StatCard label="Gross Profit" value={money(report.totals.gross_profit)} tone="positive" />
-            <StatCard label="Expenses" value={money(report.totals.expenses)} />
-            <StatCard
-              label="Net Profit"
-              value={money(report.totals.net_profit)}
-              tone={netProfit >= 0 ? "positive" : "negative"}
-            />
+            {[
+              { label: "Revenue", value: money(report.totals.revenue), tone: undefined },
+              { label: "Cost of Goods", value: money(report.totals.cogs), tone: undefined },
+              { label: "Gross Profit", value: money(report.totals.gross_profit), tone: "positive" as const },
+              { label: "Expenses", value: money(report.totals.expenses), tone: undefined },
+              {
+                label: "Net Profit",
+                value: money(report.totals.net_profit),
+                tone: netProfit >= 0 ? ("positive" as const) : ("negative" as const),
+              },
+            ].map((s, i) => (
+              <div
+                key={s.label}
+                className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                style={{ animationDelay: `${i * 60}ms`, animationDuration: "400ms" }}
+              >
+                <StatCard label={s.label} value={s.value} tone={s.tone} />
+              </div>
+            ))}
           </div>
 
-          <Card>
+          <Card className="animate-in fade-in duration-500">
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 {netProfit >= 0 ? (

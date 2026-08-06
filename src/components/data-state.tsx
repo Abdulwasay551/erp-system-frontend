@@ -1,5 +1,7 @@
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function LoadingState({ label = "Loading..." }: { label?: string }) {
   return (
@@ -20,6 +22,24 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
           Retry
         </Button>
       )}
+    </div>
+  );
+}
+
+/** Shimmer placeholder for a grid of StatCards, shown while the first fetch is in flight. */
+export function StatCardSkeletonGrid({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-4 w-24" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-7 w-20" />
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
