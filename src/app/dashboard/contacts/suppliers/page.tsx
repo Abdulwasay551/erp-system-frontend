@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Truck, Download, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -39,6 +39,8 @@ interface Supplier {
   phone: string;
   email: string;
   city: string;
+  contact_person: string;
+  address: string;
   supplier_type: string;
   outstanding_balance: string;
 }
@@ -95,11 +97,14 @@ export default function SuppliersPage() {
   const [reference, setReference] = useState("");
   const [paying, setPaying] = useState(false);
 
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [address, setAddress] = useState("");
   const [supplierType, setSupplierType] = useState("distributor");
   const [saving, setSaving] = useState(false);
 
@@ -112,27 +117,49 @@ export default function SuppliersPage() {
 
   useEffect(loadSuppliers, []);
 
-  async function addSupplier() {
+  function openAdd() {
+    setEditingId(null);
+    setName("");
+    setPhone("");
+    setEmail("");
+    setCity("");
+    setContactPerson("");
+    setAddress("");
+    setSupplierType("distributor");
+    setFormOpen(true);
+  }
+
+  function openEditSupplier(s: Supplier) {
+    setEditingId(s.id);
+    setName(s.name);
+    setPhone(s.phone || "");
+    setEmail(s.email || "");
+    setCity(s.city || "");
+    setContactPerson(s.contact_person || "");
+    setAddress(s.address || "");
+    setSupplierType(s.supplier_type || "distributor");
+    setFormOpen(true);
+  }
+
+  async function saveSupplier() {
     if (!name.trim()) {
       toast.error("Vendor name is required.");
       return;
     }
     setSaving(true);
     try {
-      await api("/api/purchase/suppliers/", {
-        method: "POST",
-        body: JSON.stringify({ name, phone, email, city, supplier_type: supplierType }),
-      });
-      toast.success("Vendor added.");
-      setName("");
-      setPhone("");
-      setEmail("");
-      setCity("");
-      setSupplierType("distributor");
-      setAddOpen(false);
+      const body = { name, phone, email, city, contact_person: contactPerson, address, supplier_type: supplierType };
+      if (editingId) {
+        await api(`/api/purchase/suppliers/${editingId}/`, { method: "PATCH", body: JSON.stringify(body) });
+        toast.success("Vendor updated.");
+      } else {
+        await api("/api/purchase/suppliers/", { method: "POST", body: JSON.stringify(body) });
+        toast.success("Vendor added.");
+      }
+      setFormOpen(false);
       loadSuppliers(search);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Failed to add vendor.");
+      toast.error(e instanceof ApiError ? e.message : "Failed to save vendor.");
     } finally {
       setSaving(false);
     }
@@ -225,11 +252,11 @@ export default function SuppliersPage() {
           <h1 className="text-xl font-semibold">Suppliers</h1>
           <p className="text-sm text-muted-foreground">Vendors you buy stock from.</p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger render={<Button>Add Vendor</Button>} />
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+          <DialogTrigger render={<Button onClick={openAdd}>Add Vendor</Button>} />
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Vendor</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Vendor" : "Add Vendor"}</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
@@ -250,6 +277,16 @@ export default function SuppliersPage() {
                 <Label>Email (optional)</Label>
                 <Input value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label>Contact Person (optional)</Label>
+                  <Input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Address (optional)</Label>
+                  <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+                </div>
+              </div>
               <div className="flex flex-col gap-2">
                 <Label>Vendor Type</Label>
                 <Select
@@ -269,7 +306,7 @@ export default function SuppliersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={addSupplier} disabled={saving}>
+              <Button onClick={saveSupplier} disabled={saving}>
                 {saving ? "Saving..." : "Save"}
               </Button>
             </div>
@@ -325,6 +362,9 @@ export default function SuppliersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openEditSupplier(s)}>
+                      <Pencil className="size-3.5" />
+                    </Button>
                     <Dialog
                       open={ledgerFor?.id === s.id}
                       onOpenChange={(open) => !open && setLedgerFor(null)}

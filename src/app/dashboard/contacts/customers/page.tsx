@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Receipt, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Receipt, Download, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -38,6 +38,7 @@ interface Customer {
   phone: string;
   email: string;
   cnic: string;
+  address: string;
   outstanding_balance: string;
 }
 
@@ -80,11 +81,13 @@ export default function CustomersPage() {
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [downloadingLedgerPdf, setDownloadingLedgerPdf] = useState(false);
 
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [cnic, setCnic] = useState("");
+  const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [payFor, setPayFor] = useState<Customer | null>(null);
@@ -146,26 +149,50 @@ export default function CustomersPage() {
     }
   }
 
-  async function addCustomer() {
+  function openAdd() {
+    setEditingId(null);
+    setName("");
+    setPhone("");
+    setEmail("");
+    setCnic("");
+    setAddress("");
+    setFormOpen(true);
+  }
+
+  function openEditCustomer(c: Customer) {
+    setEditingId(c.id);
+    setName(c.name);
+    setPhone(c.phone || "");
+    setEmail(c.email || "");
+    setCnic(c.cnic || "");
+    setAddress(c.address || "");
+    setFormOpen(true);
+  }
+
+  async function saveCustomer() {
     if (!name.trim()) {
       toast.error("Name is required.");
       return;
     }
     setSaving(true);
     try {
-      await api("/api/crm/customers/", {
-        method: "POST",
-        body: JSON.stringify({ name, phone, email, cnic }),
-      });
-      toast.success("Customer added.");
-      setName("");
-      setPhone("");
-      setEmail("");
-      setCnic("");
-      setAddOpen(false);
+      if (editingId) {
+        await api(`/api/crm/customers/${editingId}/`, {
+          method: "PATCH",
+          body: JSON.stringify({ name, phone, email, cnic, address }),
+        });
+        toast.success("Customer updated.");
+      } else {
+        await api("/api/crm/customers/", {
+          method: "POST",
+          body: JSON.stringify({ name, phone, email, cnic, address }),
+        });
+        toast.success("Customer added.");
+      }
+      setFormOpen(false);
       loadCustomers(search);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Failed to add customer.");
+      toast.error(e instanceof ApiError ? e.message : "Failed to save customer.");
     } finally {
       setSaving(false);
     }
@@ -214,11 +241,11 @@ export default function CustomersPage() {
           <h1 className="text-xl font-semibold">Customers</h1>
           <p className="text-sm text-muted-foreground">People and businesses you sell to.</p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger render={<Button>Add Customer</Button>} />
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+          <DialogTrigger render={<Button onClick={openAdd}>Add Customer</Button>} />
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Customer</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Customer" : "Add Customer"}</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
@@ -237,7 +264,11 @@ export default function CustomersPage() {
                 <Label>CNIC (optional)</Label>
                 <Input value={cnic} onChange={(e) => setCnic(e.target.value)} />
               </div>
-              <Button onClick={addCustomer} disabled={saving}>
+              <div className="flex flex-col gap-2">
+                <Label>Address (optional)</Label>
+                <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+              </div>
+              <Button onClick={saveCustomer} disabled={saving}>
                 {saving ? "Saving..." : "Save"}
               </Button>
             </div>
@@ -287,6 +318,9 @@ export default function CustomersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openEditCustomer(c)}>
+                      <Pencil className="size-3.5" />
+                    </Button>
                     <Dialog
                       open={ledgerFor?.id === c.id}
                       onOpenChange={(open) => !open && setLedgerFor(null)}

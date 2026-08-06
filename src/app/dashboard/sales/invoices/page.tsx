@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Receipt, Undo2, Loader2, Download } from "lucide-react";
+import { FileText, Receipt, Undo2, Loader2, Download, Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -45,6 +45,9 @@ interface Invoice {
   customer: number;
   customer_name: string;
   invoice_date: string;
+  due_date: string | null;
+  payment_terms: string;
+  notes: string;
   total: string;
   paid_amount: string;
   outstanding_amount: string;
@@ -117,6 +120,12 @@ export default function InvoicesPage() {
   const [returnNotes, setReturnNotes] = useState("");
   const [processingReturn, setProcessingReturn] = useState(false);
 
+  const [editFor, setEditFor] = useState<Invoice | null>(null);
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editPaymentTerms, setEditPaymentTerms] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   function load() {
     api<Invoice[]>("/api/sales/invoices/")
       .then(setInvoices)
@@ -137,6 +146,35 @@ export default function InvoicesPage() {
     setAmount(inv.outstanding_amount);
     setReference("");
     setMethod("cash");
+  }
+
+  function openEdit(inv: Invoice) {
+    setEditFor(inv);
+    setEditDueDate(inv.due_date ?? "");
+    setEditPaymentTerms(inv.payment_terms ?? "");
+    setEditNotes(inv.notes ?? "");
+  }
+
+  async function saveEdit() {
+    if (!editFor) return;
+    setSavingEdit(true);
+    try {
+      await api(`/api/sales/invoices/${editFor.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          due_date: editDueDate || null,
+          payment_terms: editPaymentTerms,
+          notes: editNotes,
+        }),
+      });
+      toast.success(`${editFor.invoice_number} updated.`);
+      setEditFor(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to update invoice.");
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   async function recordPayment() {
@@ -341,6 +379,45 @@ export default function InvoicesPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    <Dialog open={editFor?.id === inv.id} onOpenChange={(open) => !open && setEditFor(null)}>
+                      <DialogTrigger
+                        render={
+                          <Button variant="outline" size="sm" onClick={() => openEdit(inv)}>
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Edit Invoice - {inv.invoice_number}</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-3">
+                          <p className="text-sm text-muted-foreground">
+                            Items and pricing are locked once an invoice is created - use Return to correct those.
+                            Only these details can be edited.
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            <Label>Due Date (optional)</Label>
+                            <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label>Payment Terms (optional)</Label>
+                            <Input
+                              placeholder="e.g. Net 30, COD"
+                              value={editPaymentTerms}
+                              onChange={(e) => setEditPaymentTerms(e.target.value)}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label>Notes (optional)</Label>
+                            <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+                          </div>
+                          <Button onClick={saveEdit} disabled={savingEdit}>
+                            {savingEdit ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                     {Number(inv.outstanding_amount) > 0 && (
                       <Dialog open={payFor?.id === inv.id} onOpenChange={(open) => !open && setPayFor(null)}>
                         <DialogTrigger
