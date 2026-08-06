@@ -118,7 +118,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             alt="Mobile Corner"
             width={28}
             height={28}
-            className="size-7 shrink-0 rounded-full object-cover"
+            className="size-7 shrink-0 rounded-full object-contain"
           />
           {!collapsed && (
             <div className="leading-tight min-w-0">

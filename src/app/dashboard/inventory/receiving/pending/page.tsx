@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, openPdf } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { PackageCheck, PackageOpen, Plus } from "lucide-react";
+import { PackageCheck, PackageOpen, Plus, Download } from "lucide-react";
 
 interface Warehouse {
   id: number;
@@ -114,6 +114,18 @@ function PendingBillCard({
   const [quantities, setQuantities] = useState<Record<number, string>>({});
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  async function downloadPdf() {
+    setDownloadingPdf(true);
+    try {
+      await openPdf(`/api/purchase/bills/${bill.id}/pdf/`);
+    } catch {
+      toast.error("Failed to generate receiving PDF.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
 
   async function receiveAndComplete() {
     if (!warehouseId) {
@@ -158,7 +170,12 @@ function PendingBillCard({
             <PackageOpen className="size-4 text-muted-foreground" />
             {bill.bill_number} &middot; {bill.supplier_name}
           </span>
-          <span className="text-muted-foreground font-normal">Rs. {bill.total_amount}</span>
+          <span className="flex items-center gap-2 font-normal">
+            <span className="text-muted-foreground">Rs. {bill.total_amount}</span>
+            <Button variant="outline" size="sm" onClick={downloadPdf} disabled={downloadingPdf}>
+              <Download className="size-3.5" /> Print
+            </Button>
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

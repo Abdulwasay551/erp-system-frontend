@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, openPdf } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Truck } from "lucide-react";
+import { Truck, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -60,6 +60,14 @@ interface LedgerEntry {
   balance: string;
 }
 
+interface LedgerPage {
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  results: LedgerEntry[];
+}
+
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank Transfer" },
@@ -71,7 +79,12 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState("");
   const [ledgerFor, setLedgerFor] = useState<Supplier | null>(null);
-  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [ledger, setLedger] = useState<LedgerPage | null>(null);
+  const [ledgerDateFrom, setLedgerDateFrom] = useState("");
+  const [ledgerDateTo, setLedgerDateTo] = useState("");
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [downloadingLedgerPdf, setDownloadingLedgerPdf] = useState(false);
 
   const [payFor, setPayFor] = useState<Supplier | null>(null);
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
@@ -123,13 +136,46 @@ export default function SuppliersPage() {
     }
   }
 
-  async function viewLedger(supplier: Supplier) {
-    setLedgerFor(supplier);
+  function ledgerQuery(page: number) {
+    const params = new URLSearchParams({ page: String(page), page_size: "20" });
+    if (ledgerDateFrom) params.set("date_from", ledgerDateFrom);
+    if (ledgerDateTo) params.set("date_to", ledgerDateTo);
+    return params.toString();
+  }
+
+  async function loadLedgerPage(supplier: Supplier, page: number) {
+    setLedgerLoading(true);
     try {
-      const data = await api<LedgerEntry[]>(`/api/purchase/suppliers/${supplier.id}/ledger/`);
+      const data = await api<LedgerPage>(`/api/purchase/suppliers/${supplier.id}/ledger/?${ledgerQuery(page)}`);
       setLedger(data);
+      setLedgerPage(page);
     } catch {
       toast.error("Failed to load ledger.");
+    } finally {
+      setLedgerLoading(false);
+    }
+  }
+
+  function viewLedger(supplier: Supplier) {
+    setLedgerFor(supplier);
+    setLedgerDateFrom("");
+    setLedgerDateTo("");
+    setLedger(null);
+    loadLedgerPage(supplier, 1);
+  }
+
+  async function downloadLedgerPdf() {
+    if (!ledgerFor) return;
+    setDownloadingLedgerPdf(true);
+    try {
+      const params = new URLSearchParams();
+      if (ledgerDateFrom) params.set("date_from", ledgerDateFrom);
+      if (ledgerDateTo) params.set("date_to", ledgerDateTo);
+      await openPdf(`/api/purchase/suppliers/${ledgerFor.id}/ledger/pdf/?${params.toString()}`);
+    } catch {
+      toast.error("Failed to generate ledger PDF.");
+    } finally {
+      setDownloadingLedgerPdf(false);
     }
   }
 
@@ -288,10 +334,47 @@ export default function SuppliersPage() {
                           </Button>
                         }
                       />
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-3xl">
                         <DialogHeader>
                           <DialogTitle>{s.name} - Ledger</DialogTitle>
                         </DialogHeader>
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="flex flex-col gap-1">
+                            <Label className="text-xs">From</Label>
+                            <Input
+                              type="date"
+                              value={ledgerDateFrom}
+                              onChange={(e) => setLedgerDateFrom(e.target.value)}
+                              className="h-8 w-36"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Label className="text-xs">To</Label>
+                            <Input
+                              type="date"
+                              value={ledgerDateTo}
+                              onChange={(e) => setLedgerDateTo(e.target.value)}
+                              className="h-8 w-36"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => ledgerFor && loadLedgerPage(ledgerFor, 1)}
+                            disabled={ledgerLoading}
+                          >
+                            Apply Filter
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-auto"
+                            onClick={downloadLedgerPdf}
+                            disabled={downloadingLedgerPdf}
+                          >
+                            <Download className="size-3.5" /> {downloadingLedgerPdf ? "Generating..." : "Download PDF"}
+                          </Button>
+                        </div>
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -303,14 +386,30 @@ export default function SuppliersPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {ledger.map((e) => (
-                              <TableRow key={e.id}>
+                            {ledger?.results.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                                  No ledger entries in this range.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {ledger?.results.map((e) => (
+                              <TableRow
+                                key={e.id}
+                                className={
+                                  Number(e.debit_amount) > 0
+                                    ? "bg-red-50 dark:bg-red-950/20"
+                                    : Number(e.credit_amount) > 0
+                                      ? "bg-green-50 dark:bg-green-950/20"
+                                      : undefined
+                                }
+                              >
                                 <TableCell>{e.transaction_date}</TableCell>
                                 <TableCell>{e.description}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right text-red-700 dark:text-red-400">
                                   {Number(e.debit_amount) > 0 ? `Rs. ${e.debit_amount}` : "-"}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right text-green-700 dark:text-green-400">
                                   {Number(e.credit_amount) > 0 ? `Rs. ${e.credit_amount}` : "-"}
                                 </TableCell>
                                 <TableCell className="text-right">Rs. {e.balance}</TableCell>
@@ -318,6 +417,31 @@ export default function SuppliersPage() {
                             ))}
                           </TableBody>
                         </Table>
+                        {ledger && ledger.total_pages > 1 && (
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-xs text-muted-foreground">
+                              Page {ledger.page} of {ledger.total_pages} - {ledger.count} entries
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={ledgerLoading || ledgerPage <= 1}
+                                onClick={() => ledgerFor && loadLedgerPage(ledgerFor, ledgerPage - 1)}
+                              >
+                                <ChevronLeft className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={ledgerLoading || ledgerPage >= ledger.total_pages}
+                                onClick={() => ledgerFor && loadLedgerPage(ledgerFor, ledgerPage + 1)}
+                              >
+                                <ChevronRight className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </DialogContent>
                     </Dialog>
 

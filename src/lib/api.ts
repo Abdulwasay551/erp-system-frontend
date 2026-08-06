@@ -90,4 +90,23 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   return data as T;
 }
 
+/**
+ * Fetches a PDF (or other binary) endpoint with the auth header attached, then opens
+ * it in a new tab - a plain <a href> can't carry the Authorization header these
+ * endpoints require.
+ */
+export async function openPdf(path: string): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, null, "Failed to generate PDF.");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export { API_BASE_URL };

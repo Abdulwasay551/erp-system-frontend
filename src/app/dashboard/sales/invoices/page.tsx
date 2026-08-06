@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError, API_BASE_URL } from "@/lib/api";
+import { api, ApiError, openPdf } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Receipt, Undo2, Loader2 } from "lucide-react";
+import { FileText, Receipt, Undo2, Loader2, Download } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -96,6 +96,8 @@ export default function InvoicesPage() {
   const [reference, setReference] = useState("");
   const [paying, setPaying] = useState(false);
 
+  const [downloadingPdfFor, setDownloadingPdfFor] = useState<number | null>(null);
+
   const [returnFor, setReturnFor] = useState<Invoice | null>(null);
   const [returnableItems, setReturnableItems] = useState<ReturnableItem[]>([]);
   const [loadingReturnable, setLoadingReturnable] = useState(false);
@@ -145,6 +147,17 @@ export default function InvoicesPage() {
       toast.error(e instanceof ApiError ? e.message : "Failed to record payment.");
     } finally {
       setPaying(false);
+    }
+  }
+
+  async function downloadInvoicePdf(inv: Invoice) {
+    setDownloadingPdfFor(inv.id);
+    try {
+      await openPdf(`/api/sales/invoices/${inv.id}/pdf/`);
+    } catch {
+      toast.error("Failed to generate invoice PDF.");
+    } finally {
+      setDownloadingPdfFor(null);
     }
   }
 
@@ -288,16 +301,14 @@ export default function InvoicesPage() {
                     <Badge variant={STATUS_VARIANT[inv.status] ?? "outline"}>{inv.status}</Badge>
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
-                    {inv.pdf_file && (
-                      <a
-                        href={inv.pdf_file.startsWith("http") ? inv.pdf_file : `${API_BASE_URL}${inv.pdf_file}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary underline text-sm"
-                      >
-                        PDF
-                      </a>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadInvoicePdf(inv)}
+                      disabled={downloadingPdfFor === inv.id}
+                    >
+                      <Download className="size-3.5" />
+                    </Button>
                     {Number(inv.outstanding_amount) > 0 && (
                       <Dialog open={payFor?.id === inv.id} onOpenChange={(open) => !open && setPayFor(null)}>
                         <DialogTrigger
