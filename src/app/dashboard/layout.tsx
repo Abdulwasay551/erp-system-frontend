@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
+import { GlobalSearch } from "@/components/global-search";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import {
@@ -80,13 +81,64 @@ function initials(firstName?: string, lastName?: string) {
   return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase() || "?";
 }
 
-function currentPageLabel(pathname: string) {
+interface Crumb {
+  label: string;
+  href?: string;
+}
+
+// Falls back to matching by longest prefix (so e.g. /dashboard/inventory/receiving/all,
+// which isn't one of the sidebar's own child links, still resolves to "Inventory /
+// Vendor Bills" instead of just "Dashboard").
+const EXTRA_LABELS: Record<string, string> = {
+  "/dashboard/inventory/receiving": "Receiving",
+  "/dashboard/inventory/receiving/all": "All Vendor Bills",
+  "/dashboard/inventory/receiving/new": "New Vendor Invoice",
+  "/dashboard/inventory/receiving/pending": "Pending Receipts",
+};
+
+function getBreadcrumbs(pathname: string): Crumb[] {
+  if (pathname === "/dashboard") return [{ label: "Overview" }];
+
   for (const mod of MODULES) {
-    if (mod.href === pathname) return mod.label;
+    if (mod.href === pathname) return [{ label: "Dashboard", href: "/dashboard" }, { label: mod.label }];
     const child = mod.children?.find((c) => c.href === pathname);
-    if (child) return `${mod.label} / ${child.label}`;
+    if (child) {
+      return [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: mod.label, href: mod.href },
+        { label: child.label },
+      ];
+    }
+    if (pathname.startsWith(mod.href + "/")) {
+      const label = EXTRA_LABELS[pathname] ?? pathname.split("/").pop()?.replace(/-/g, " ") ?? mod.label;
+      return [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: mod.label, href: mod.href },
+        { label: label.charAt(0).toUpperCase() + label.slice(1) },
+      ];
+    }
   }
-  return "Dashboard";
+  return [{ label: "Dashboard", href: "/dashboard" }];
+}
+
+function Breadcrumbs({ pathname }: { pathname: string }) {
+  const crumbs = getBreadcrumbs(pathname);
+  return (
+    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+      {crumbs.map((crumb, i) => (
+        <span key={i} className="flex items-center gap-1.5 min-w-0">
+          {i > 0 && <span className="text-muted-foreground/50">/</span>}
+          {crumb.href ? (
+            <Link href={crumb.href} className="hover:text-foreground transition-colors truncate">
+              {crumb.label}
+            </Link>
+          ) : (
+            <span className="text-foreground font-medium truncate">{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
 }
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -235,7 +287,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           >
             {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
-          <h2 className="text-sm font-medium text-muted-foreground">{currentPageLabel(pathname)}</h2>
+          <Breadcrumbs pathname={pathname} />
+          <div className="ml-auto w-full max-w-sm">
+            <GlobalSearch />
+          </div>
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
