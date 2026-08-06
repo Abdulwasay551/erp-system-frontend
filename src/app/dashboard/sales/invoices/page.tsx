@@ -25,6 +25,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -150,10 +156,10 @@ export default function InvoicesPage() {
     }
   }
 
-  async function downloadInvoicePdf(inv: Invoice) {
+  async function downloadInvoicePdf(inv: Invoice, size: "mini" | "a4") {
     setDownloadingPdfFor(inv.id);
     try {
-      await openPdf(`/api/sales/invoices/${inv.id}/pdf/`);
+      await openPdf(`/api/sales/invoices/${inv.id}/pdf/?size=${size}`);
     } catch {
       toast.error("Failed to generate invoice PDF.");
     } finally {
@@ -301,14 +307,23 @@ export default function InvoicesPage() {
                     <Badge variant={STATUS_VARIANT[inv.status] ?? "outline"}>{inv.status}</Badge>
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadInvoicePdf(inv)}
-                      disabled={downloadingPdfFor === inv.id}
-                    >
-                      <Download className="size-3.5" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button variant="outline" size="sm" disabled={downloadingPdfFor === inv.id}>
+                            <Download className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => downloadInvoicePdf(inv, "mini")}>
+                          Mini receipt (billing machine)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => downloadInvoicePdf(inv, "a4")}>
+                          A4 invoice (printer)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     {Number(inv.outstanding_amount) > 0 && (
                       <Dialog open={payFor?.id === inv.id} onOpenChange={(open) => !open && setPayFor(null)}>
                         <DialogTrigger
