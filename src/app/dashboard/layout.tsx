@@ -284,8 +284,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               }
             />
             <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Appearance</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Appearance</DropdownMenuLabel>
                 <DropdownMenuRadioItem value="system">
                   <Monitor className="size-4" /> System
                 </DropdownMenuRadioItem>
