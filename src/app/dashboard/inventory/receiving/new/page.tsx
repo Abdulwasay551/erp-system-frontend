@@ -12,8 +12,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SearchableSelect } from "@/components/searchable-select";
+import { DiscountEditor, DiscountEntry, computeDiscountTotal } from "@/components/discount-editor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { fadeInUp } from "@/lib/motion";
-import { ArrowRight, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Percent, Plus, Trash2 } from "lucide-react";
 
 interface Supplier {
   id: number;
@@ -33,6 +41,7 @@ interface NewInvoiceLine {
   tracking_method: string;
   unit_price: string;
   expected_quantity: string;
+  discounts: DiscountEntry[];
 }
 
 export default function NewReceiptPage() {
@@ -44,6 +53,7 @@ export default function NewReceiptPage() {
   const [lines, setLines] = useState<NewInvoiceLine[]>([]);
   const [productQuery, setProductQuery] = useState("");
   const [productResults, setProductResults] = useState<ProductResult[]>([]);
+  const [headerDiscount, setHeaderDiscount] = useState("");
   const [creating, setCreating] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
 
@@ -85,6 +95,7 @@ export default function NewReceiptPage() {
         tracking_method: p.tracking_method,
         unit_price: "",
         expected_quantity: p.tracking_method === "none" ? "" : "1",
+        discounts: [],
       },
     ]);
     setProductQuery("");
@@ -93,6 +104,10 @@ export default function NewReceiptPage() {
 
   function updateLine(key: string, field: "unit_price" | "expected_quantity", value: string) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)));
+  }
+
+  function updateLineDiscounts(key: string, discounts: DiscountEntry[]) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, discounts } : l)));
   }
 
   function removeLine(key: string) {
@@ -119,7 +134,9 @@ export default function NewReceiptPage() {
             product_id: l.product_id,
             unit_price: l.unit_price,
             expected_quantity: l.expected_quantity,
+            discounts: l.discounts.filter((d) => Number(d.value) > 0),
           })),
+          discount_amount: Number(headerDiscount) || undefined,
         }),
       });
       setLastCreated(resp.bill_number);
@@ -127,6 +144,7 @@ export default function NewReceiptPage() {
       setLines([]);
       setSupplierInvoiceNumber("");
       setSupplierId(null);
+      setHeaderDiscount("");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to create invoice.");
     } finally {
@@ -134,11 +152,18 @@ export default function NewReceiptPage() {
     }
   }
 
-  const total = lines.reduce((sum, l) => {
+  const subtotal = lines.reduce((sum, l) => {
     const price = Number(l.unit_price) || 0;
     const qty = Number(l.expected_quantity) || 0;
     return sum + price * qty;
   }, 0);
+  const lineDiscountsTotal = lines.reduce((sum, l) => {
+    const price = Number(l.unit_price) || 0;
+    const qty = Number(l.expected_quantity) || 0;
+    return sum + computeDiscountTotal(price * qty, qty, l.discounts);
+  }, 0);
+  const headerDiscountAmount = Math.min(Math.max(Number(headerDiscount) || 0, 0), subtotal - lineDiscountsTotal);
+  const total = subtotal - lineDiscountsTotal - headerDiscountAmount;
 
   return (
     <div className="flex flex-col gap-6">
@@ -237,35 +262,73 @@ export default function NewReceiptPage() {
 
           {lines.length > 0 ? (
             <div className="flex flex-col gap-2">
-              {lines.map((l) => (
-                <div key={l.key} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                  <span className="flex-1">
-                    {l.product_name}{" "}
-                    {l.tracking_method !== "none" && (
-                      <Badge variant="outline">{l.tracking_method}</Badge>
-                    )}
-                  </span>
+              {lines.map((l) => {
+                const activeDiscounts = l.discounts.filter((d) => Number(d.value) > 0);
+                return (
+                  <div key={l.key} className="flex items-center gap-2 rounded-md border p-2 text-sm">
+                    <span className="flex-1">
+                      {l.product_name}{" "}
+                      {l.tracking_method !== "none" && (
+                        <Badge variant="outline">{l.tracking_method}</Badge>
+                      )}
+                    </span>
+                    <Input
+                      className="w-28"
+                      placeholder="Unit price"
+                      value={l.unit_price}
+                      onChange={(e) => updateLine(l.key, "unit_price", e.target.value)}
+                      inputMode="decimal"
+                    />
+                    <Input
+                      className="w-28"
+                      placeholder="Expected qty"
+                      value={l.expected_quantity}
+                      onChange={(e) => updateLine(l.key, "expected_quantity", e.target.value)}
+                      inputMode="numeric"
+                    />
+                    <Dialog>
+                      <DialogTrigger
+                        render={
+                          <Button variant="outline" size="sm">
+                            <Percent className="size-3.5" />
+                            {activeDiscounts.length > 0 ? `${activeDiscounts.length} applied` : "Discount"}
+                          </Button>
+                        }
+                      />
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Discounts - {l.product_name}</DialogTitle>
+                        </DialogHeader>
+                        <DiscountEditor value={l.discounts} onChange={(d) => updateLineDiscounts(l.key, d)} />
+                      </DialogContent>
+                    </Dialog>
+                    <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground">Whole-bill discount</Label>
                   <Input
                     className="w-28"
-                    placeholder="Unit price"
-                    value={l.unit_price}
-                    onChange={(e) => updateLine(l.key, "unit_price", e.target.value)}
+                    type="number"
+                    min={0}
                     inputMode="decimal"
+                    placeholder="0.00"
+                    value={headerDiscount}
+                    onChange={(e) => setHeaderDiscount(e.target.value)}
                   />
-                  <Input
-                    className="w-28"
-                    placeholder="Expected qty"
-                    value={l.expected_quantity}
-                    onChange={(e) => updateLine(l.key, "expected_quantity", e.target.value)}
-                    inputMode="numeric"
-                  />
-                  <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
-                    <Trash2 className="size-3.5" />
-                  </Button>
                 </div>
-              ))}
-              <div className="flex justify-end text-sm text-muted-foreground">
-                Estimated total: <span className="ml-1 font-medium text-foreground">Rs. {total.toFixed(2)}</span>
+                {lineDiscountsTotal > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Line discounts: - Rs. {lineDiscountsTotal.toFixed(2)}
+                  </div>
+                )}
+                <div className="text-sm text-muted-foreground">
+                  Estimated total: <span className="ml-1 font-medium text-foreground">Rs. {total.toFixed(2)}</span>
+                </div>
               </div>
             </div>
           ) : (

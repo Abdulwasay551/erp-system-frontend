@@ -65,6 +65,7 @@ const MODULES: NavModule[] = [
       { href: "/dashboard/inventory/receiving/new", label: "New Vendor Invoice" },
       { href: "/dashboard/inventory/receiving/pending", label: "Pending Receipts" },
       { href: "/dashboard/inventory/products", label: "Products" },
+      { href: "/dashboard/inventory/lookup", label: "Item Lookup" },
     ],
   },
   {
