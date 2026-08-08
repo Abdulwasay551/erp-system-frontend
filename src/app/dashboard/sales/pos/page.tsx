@@ -30,7 +30,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserRound, Download } from "lucide-react";
+import { UserRound, Download, TriangleAlert, Percent } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { DiscountEditor, DiscountEntry, computeDiscountTotal } from "@/components/discount-editor";
 
 interface Customer {
   id: number;
@@ -47,6 +55,7 @@ interface SearchResult {
   identifier: string;
   tracking_method: string;
   unit_price: string;
+  avg_purchase_price: string;
   available_qty: string | number;
 }
 
@@ -57,8 +66,10 @@ interface CartLine {
   name: string;
   identifier: string;
   unit_price: number;
+  avg_purchase_price: number;
   quantity: number;
   max_qty: number;
+  discounts: DiscountEntry[];
 }
 
 interface CheckoutResponse {
@@ -94,8 +105,12 @@ export default function POSPage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const cartSubtotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
-  const discountAmount = Math.min(Math.max(Number(discount) || 0, 0), cartSubtotal);
-  const cartTotal = cartSubtotal - discountAmount;
+  const lineDiscountsTotal = cart.reduce(
+    (sum, line) => sum + computeDiscountTotal(line.unit_price * line.quantity, line.quantity, line.discounts),
+    0
+  );
+  const discountAmount = Math.min(Math.max(Number(discount) || 0, 0), cartSubtotal - lineDiscountsTotal);
+  const cartTotal = cartSubtotal - lineDiscountsTotal - discountAmount;
 
   async function searchCustomers(q: string) {
     setCustomerSearching(true);
@@ -139,8 +154,10 @@ export default function POSPage() {
           name: item.variant ? `${item.name} (${item.variant})` : item.name,
           identifier: item.identifier,
           unit_price: parseFloat(item.unit_price),
+          avg_purchase_price: parseFloat(item.avg_purchase_price) || 0,
           quantity: 1,
           max_qty: item.tracking_id ? 1 : Number(item.available_qty),
+          discounts: [],
         },
       ];
     });
@@ -152,6 +169,14 @@ export default function POSPage() {
     setCart((prev) =>
       prev.map((l) => (l.key === key ? { ...l, quantity: Math.max(1, Math.min(quantity, l.max_qty)) } : l))
     );
+  }
+
+  function updatePrice(key: string, unit_price: number) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, unit_price } : l)));
+  }
+
+  function updateDiscounts(key: string, discounts: DiscountEntry[]) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, discounts } : l)));
   }
 
   function removeFromCart(key: string) {
@@ -172,6 +197,7 @@ export default function POSPage() {
           tracking_id: l.tracking_id ?? undefined,
           quantity: l.tracking_id ? undefined : l.quantity,
           unit_price: l.unit_price,
+          discounts: l.discounts.filter((d) => Number(d.value) > 0),
         })),
         discount_amount: discountAmount || undefined,
         payment: {
@@ -274,39 +300,81 @@ export default function POSPage() {
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">Unit Price</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Discount</TableHead>
                     <TableHead className="text-right">Line Total</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {cart.map((l) => (
-                    <TableRow key={l.key}>
-                      <TableCell>{l.name}</TableCell>
-                      <TableCell className="text-right">Rs. {l.unit_price.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        {l.tracking_id ? (
-                          l.quantity
-                        ) : (
-                          <Input
-                            type="number"
-                            min={1}
-                            max={l.max_qty}
-                            value={l.quantity}
-                            onChange={(e) => updateQuantity(l.key, Number(e.target.value))}
-                            className="w-20 text-right ml-auto"
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        Rs. {(l.unit_price * l.quantity).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => removeFromCart(l.key)}>
-                          Remove
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {cart.map((l) => {
+                    const belowCost = l.avg_purchase_price > 0 && l.unit_price < l.avg_purchase_price;
+                    const lineDiscount = computeDiscountTotal(l.unit_price * l.quantity, l.quantity, l.discounts);
+                    const activeDiscounts = l.discounts.filter((d) => Number(d.value) > 0);
+                    return (
+                      <TableRow key={l.key}>
+                        <TableCell>{l.name}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {belowCost && (
+                              <span
+                                title={`Below average purchase price of Rs. ${l.avg_purchase_price.toFixed(2)} - this sale will reduce margin.`}
+                              >
+                                <TriangleAlert className="size-3.5 text-warning shrink-0" />
+                              </span>
+                            )}
+                            <Input
+                              type="number"
+                              min={0}
+                              inputMode="decimal"
+                              value={l.unit_price}
+                              onChange={(e) => updatePrice(l.key, Number(e.target.value))}
+                              className="w-24 text-right"
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {l.tracking_id ? (
+                            l.quantity
+                          ) : (
+                            <Input
+                              type="number"
+                              min={1}
+                              max={l.max_qty}
+                              value={l.quantity}
+                              onChange={(e) => updateQuantity(l.key, Number(e.target.value))}
+                              className="w-20 text-right ml-auto"
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Dialog>
+                            <DialogTrigger
+                              render={
+                                <Button variant="outline" size="sm">
+                                  <Percent className="size-3.5" />
+                                  {activeDiscounts.length > 0 ? `${activeDiscounts.length} applied` : "Add"}
+                                </Button>
+                              }
+                            />
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Discounts - {l.name}</DialogTitle>
+                              </DialogHeader>
+                              <DiscountEditor value={l.discounts} onChange={(d) => updateDiscounts(l.key, d)} />
+                            </DialogContent>
+                          </Dialog>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          Rs. {(l.unit_price * l.quantity - lineDiscount).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => removeFromCart(l.key)}>
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -324,8 +392,14 @@ export default function POSPage() {
               <span>Subtotal</span>
               <span>Rs. {cartSubtotal.toFixed(2)}</span>
             </div>
+            {lineDiscountsTotal > 0 && (
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Line discounts</span>
+                <span>- Rs. {lineDiscountsTotal.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium">Discount</Label>
+              <Label className="text-sm font-medium">Cart-wide discount</Label>
               <Input
                 type="number"
                 min={0}
