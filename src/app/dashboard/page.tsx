@@ -2,14 +2,28 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Trophy, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  Trophy,
+  TrendingUp,
+  Wallet,
+  Receipt,
+  Users,
+  Truck,
+  Package,
+  PackageCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { ErrorState } from "@/components/data-state";
 import { LogoLoader } from "@/components/logo-loader";
 import { BarChart } from "@/components/charts/bar-chart";
+import { cn } from "@/lib/utils";
+import { fadeInUp, staggerContainer } from "@/lib/motion";
 
 interface DashboardStats {
   todays_sales_total: string;
@@ -40,32 +54,62 @@ interface DayRow {
   revenue: string;
 }
 
+/** The single highest-frequency metric on the page gets the gradient hero treatment -
+ * matches why mobile's Dashboard makes today's revenue a gradient hero card. */
+function HeroStatCard({ label, value, href }: { label: string; value: string; href: string }) {
+  return (
+    <motion.div variants={fadeInUp} className="col-span-2">
+      <Link href={href}>
+        <Card className="gradient-primary h-full border-none shadow-md transition-transform hover:-translate-y-0.5">
+          <CardContent className="flex items-center gap-4">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/20">
+              <Wallet className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm text-primary-foreground/80">{label}</p>
+              <p className="text-2xl font-bold sm:text-3xl">{value}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    </motion.div>
+  );
+}
+
 function StatCard({
   label,
   value,
   href,
-  index,
+  icon: Icon,
+  tone = "primary",
 }: {
   label: string;
   value: string | number;
   href: string;
-  index: number;
+  icon: LucideIcon;
+  tone?: "primary" | "warning";
 }) {
   return (
-    <Link
-      href={href}
-      className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-      style={{ animationDelay: `${index * 60}ms`, animationDuration: "400ms" }}
-    >
-      <Card className="transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-primary/40">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-semibold">{value}</p>
-        </CardContent>
-      </Card>
-    </Link>
+    <motion.div variants={fadeInUp}>
+      <Link href={href}>
+        <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-primary/40">
+          <CardContent className="flex items-center gap-3">
+            <span
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-full",
+                tone === "warning" ? "bg-warning-container text-warning" : "bg-primary/10 text-primary"
+              )}
+            >
+              <Icon className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">{label}</p>
+              <p className="text-xl font-semibold">{value}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    </motion.div>
   );
 }
 
@@ -104,22 +148,50 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Dashboard</h1>
       {stats && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          <StatCard index={0} label="Today's Sales" value={`Rs. ${stats.todays_sales_total}`} href="/dashboard/sales/invoices" />
-          <StatCard index={1} label="Today's Sales Count" value={stats.todays_sales_count} href="/dashboard/sales/invoices" />
-          <StatCard index={2} label="Customer Outstanding" value={`Rs. ${stats.customer_outstanding_total}`} href="/dashboard/contacts/customers" />
-          <StatCard index={3} label="Supplier Outstanding" value={`Rs. ${stats.supplier_outstanding_total}`} href="/dashboard/contacts/suppliers" />
-          <StatCard index={4} label="Low Stock Items" value={stats.low_stock_count} href="/dashboard/inventory/products" />
-          <StatCard index={5} label="Available Tracked Units" value={stats.available_tracked_units} href="/dashboard/inventory/products" />
-          <StatCard index={6} label="Pending Vendor Receipts" value={stats.pending_vendor_receipts} href="/dashboard/inventory/receiving/pending" />
-        </div>
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+        >
+          <HeroStatCard label="Today's Sales" value={`Rs. ${stats.todays_sales_total}`} href="/dashboard/sales/invoices" />
+          <StatCard label="Today's Sales Count" value={stats.todays_sales_count} href="/dashboard/sales/invoices" icon={Receipt} />
+          <StatCard
+            label="Customer Outstanding"
+            value={`Rs. ${stats.customer_outstanding_total}`}
+            href="/dashboard/contacts/customers"
+            icon={Users}
+            tone="warning"
+          />
+          <StatCard
+            label="Supplier Outstanding"
+            value={`Rs. ${stats.supplier_outstanding_total}`}
+            href="/dashboard/contacts/suppliers"
+            icon={Truck}
+            tone="warning"
+          />
+          <StatCard
+            label="Low Stock Items"
+            value={stats.low_stock_count}
+            href="/dashboard/inventory/products"
+            icon={AlertTriangle}
+            tone="warning"
+          />
+          <StatCard label="Available Tracked Units" value={stats.available_tracked_units} href="/dashboard/inventory/products" icon={Package} />
+          <StatCard
+            label="Pending Vendor Receipts"
+            value={stats.pending_vendor_receipts}
+            href="/dashboard/inventory/receiving/pending"
+            icon={PackageCheck}
+          />
+        </motion.div>
       )}
 
       {trend.length > 0 && (
         <Card className="animate-in fade-in duration-500">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="size-4 text-emerald-600" /> Revenue - Last 7 Days
+              <TrendingUp className="size-4 text-success" /> Revenue - Last 7 Days
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -165,7 +237,7 @@ export default function DashboardPage() {
         <Card className="animate-in fade-in duration-500">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <AlertTriangle className="size-4 text-amber-500" /> Low Stock
+              <AlertTriangle className="size-4 text-warning" /> Low Stock
             </CardTitle>
           </CardHeader>
           <CardContent>

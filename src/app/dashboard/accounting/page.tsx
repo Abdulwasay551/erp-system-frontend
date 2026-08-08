@@ -44,7 +44,7 @@ export default function AccountingModulePage() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Net Profit (30 days)</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className={`text-2xl font-semibold ${netProfit >= 0 ? "text-emerald-600 dark:text-emerald-500" : "text-red-600 dark:text-red-500"}`}>
+              <p className={`text-2xl font-semibold ${netProfit >= 0 ? "text-success" : "text-danger"}`}>
                 Rs. {netProfit.toLocaleString()}
               </p>
             </CardContent>

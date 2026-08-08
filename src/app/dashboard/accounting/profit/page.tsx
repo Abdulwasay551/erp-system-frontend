@@ -57,9 +57,9 @@ function StatCard({
 }) {
   const color =
     tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-500"
+      ? "text-success"
       : tone === "negative"
-      ? "text-red-600 dark:text-red-500"
+      ? "text-danger"
       : "";
   return (
     <Card>
@@ -160,9 +160,9 @@ export default function ProfitAndLossPage() {
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 {netProfit >= 0 ? (
-                  <TrendingUp className="size-4 text-emerald-600" />
+                  <TrendingUp className="size-4 text-success" />
                 ) : (
-                  <TrendingDown className="size-4 text-red-600" />
+                  <TrendingDown className="size-4 text-danger" />
                 )}
                 Revenue vs. Costs by day
               </CardTitle>

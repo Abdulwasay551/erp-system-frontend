@@ -381,7 +381,11 @@ export default function POSPage() {
                 onChange={(e) => setPaymentReference(e.target.value)}
               />
             </div>
-            <Button onClick={checkout} disabled={checkingOut || cart.length === 0} className="w-full">
+            <Button
+              onClick={checkout}
+              disabled={checkingOut || cart.length === 0}
+              className="gradient-primary w-full border-none disabled:opacity-50"
+            >
               {checkingOut ? "Processing..." : "Complete Sale"}
             </Button>
           </CardContent>

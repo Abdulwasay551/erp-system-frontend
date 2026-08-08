@@ -380,6 +380,8 @@ export default function SuppliersPage() {
                   <TableCell>{s.phone || "-"}</TableCell>
                   <TableCell>{s.city || "-"}</TableCell>
                   <TableCell className="text-right">
+                    {/* Deferred: hardcoded amber -> lib/status.ts text-warning token, left for the
+                        contacts redesign pass to avoid duplicate-effort with that phase. */}
                     <span className={Number(s.outstanding_balance) > 0 ? "font-medium text-amber-600 dark:text-amber-500" : ""}>
                       Rs. {s.outstanding_balance}
                     </span>
@@ -459,6 +461,9 @@ export default function SuppliersPage() {
                                 </TableCell>
                               </TableRow>
                             )}
+                            {/* Deferred: hardcoded red/green debit-credit row tinting -> semantic
+                                danger/success tokens, left for the contacts redesign pass to avoid
+                                duplicate-effort with that phase. */}
                             {ledger?.results.map((e) => (
                               <TableRow
                                 key={e.id}

@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { isAdmin } from "@/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { fadeInUp } from "@/lib/motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/pagination";
@@ -59,15 +61,6 @@ interface Invoice {
   status: string;
   pdf_file: string | null;
 }
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  paid: "default",
-  partially_paid: "secondary",
-  sent: "outline",
-  draft: "outline",
-  overdue: "destructive",
-  cancelled: "destructive",
-};
 
 const STATUS_FILTERS = [
   { value: "all", label: "All" },
@@ -334,6 +327,7 @@ export default function InvoicesPage() {
         </Select>
       </div>
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -380,12 +374,12 @@ export default function InvoicesPage() {
                   <TableCell className="text-right">Rs. {inv.total}</TableCell>
                   <TableCell className="text-right">Rs. {inv.paid_amount}</TableCell>
                   <TableCell className="text-right">
-                    <span className={Number(inv.outstanding_amount) > 0 ? "font-medium text-amber-600 dark:text-amber-500" : ""}>
+                    <span className={Number(inv.outstanding_amount) > 0 ? "font-medium text-warning" : ""}>
                       Rs. {inv.outstanding_amount}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[inv.status] ?? "outline"}>{inv.status}</Badge>
+                    <StatusBadge status={inv.status} />
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
                     <DropdownMenu>
@@ -633,6 +627,7 @@ export default function InvoicesPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }
