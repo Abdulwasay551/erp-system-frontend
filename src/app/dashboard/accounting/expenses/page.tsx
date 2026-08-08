@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -10,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Receipt } from "lucide-react";
+import { fadeInUp, staggerContainer } from "@/lib/motion";
+import { Wallet, Receipt } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -145,7 +147,7 @@ export default function ExpensesPage() {
           <p className="text-sm text-muted-foreground">Rent, salaries, utilities, and any other shop overhead.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button>Add Expense</Button>} />
+          <DialogTrigger render={<Button className="gradient-primary border-none">Add Expense</Button>} />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Expense</DialogTitle>
@@ -212,30 +214,44 @@ export default function ExpensesPage() {
       </div>
 
       {summary && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">Rs. {summary.grand_total}</p>
-            </CardContent>
-          </Card>
-          {summary.by_category.slice(0, 3).map((row) => (
-            <Card key={row.category}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground capitalize">
-                  {row.category}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">Rs. {row.total}</p>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+          className="grid grid-cols-2 gap-4 md:grid-cols-4"
+        >
+          <motion.div variants={fadeInUp} className="col-span-2 md:col-span-1">
+            <Card className="gradient-primary h-full border-none shadow-md">
+              <CardContent className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/20">
+                  <Wallet className="size-4" />
+                </span>
+                <div>
+                  <p className="text-sm text-primary-foreground/80">This Month</p>
+                  <p className="text-xl font-semibold">Rs. {summary.grand_total}</p>
+                </div>
               </CardContent>
             </Card>
+          </motion.div>
+          {summary.by_category.slice(0, 3).map((row) => (
+            <motion.div key={row.category} variants={fadeInUp}>
+              <Card className="h-full">
+                <CardContent className="flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Receipt className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground capitalize">{row.category}</p>
+                    <p className="text-xl font-semibold">Rs. {row.total}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -289,6 +305,7 @@ export default function ExpensesPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }

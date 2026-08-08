@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SearchableSelect } from "@/components/searchable-select";
-import { ArrowRight, Plus, Trash2 } from "lucide-react";
+import { fadeInUp } from "@/lib/motion";
+import { ArrowRight, CheckCircle2, Plus, Trash2 } from "lucide-react";
 
 interface Supplier {
   id: number;
@@ -148,18 +150,25 @@ export default function NewReceiptPage() {
       </div>
 
       {lastCreated && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="flex items-center justify-between pt-6">
-            <p className="text-sm">
-              <span className="font-medium">{lastCreated}</span> is now waiting to be received.
-            </p>
-            <Link href="/dashboard/inventory/receiving/pending">
-              <Button variant="outline" size="sm">
-                Go to Pending Receipts <ArrowRight className="size-3.5" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+          <Card className="border-success/30 bg-success-container/40">
+            <CardContent className="flex items-center justify-between pt-6">
+              <p className="flex items-center gap-2 text-sm">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success-container text-success">
+                  <CheckCircle2 className="size-4" />
+                </span>
+                <span>
+                  <span className="font-medium">{lastCreated}</span> is now waiting to be received.
+                </span>
+              </p>
+              <Link href="/dashboard/inventory/receiving/pending">
+                <Button variant="outline" size="sm">
+                  Go to Pending Receipts <ArrowRight className="size-3.5" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       <Card>
@@ -265,7 +274,7 @@ export default function NewReceiptPage() {
             </p>
           )}
 
-          <Button onClick={createInvoice} disabled={creating} className="w-fit">
+          <Button onClick={createInvoice} disabled={creating} className="w-fit gradient-primary border-none">
             {creating ? "Recording..." : "Record Vendor Invoice"}
           </Button>
         </CardContent>

@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { isAdmin } from "@/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { fadeInUp } from "@/lib/motion";
 import { Download, PackageSearch } from "lucide-react";
 import {
   Table,
@@ -33,15 +36,6 @@ interface Bill {
   total_amount: string;
   paid_amount: string;
 }
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  paid: "default",
-  partially_paid: "secondary",
-  approved: "outline",
-  draft: "outline",
-  overdue: "destructive",
-  cancelled: "destructive",
-};
 
 const PAGE_SIZE = 25;
 
@@ -99,6 +93,7 @@ export default function AllBillsPage() {
         <p className="text-sm text-muted-foreground">Every bill recorded from a supplier, received or still pending.</p>
       </div>
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -140,10 +135,17 @@ export default function AllBillsPage() {
                   <TableCell>{bill.supplier_name}</TableCell>
                   <TableCell>{bill.bill_date}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[bill.status] ?? "outline"}>{bill.status}</Badge>
+                    <StatusBadge status={bill.status} />
                   </TableCell>
                   <TableCell>
-                    <Badge variant={bill.goods_received ? "default" : "secondary"}>
+                    <Badge
+                      variant="outline"
+                      className={
+                        bill.goods_received
+                          ? "bg-success-container text-success border-transparent"
+                          : "bg-warning-container text-warning border-transparent"
+                      }
+                    >
                       {bill.goods_received ? "Received" : "Pending"}
                     </Badge>
                   </TableCell>
@@ -172,6 +174,7 @@ export default function AllBillsPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }

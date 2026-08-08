@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { fadeInUp } from "@/lib/motion";
 import { Truck, Download, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import {
   Table,
@@ -269,7 +271,7 @@ export default function SuppliersPage() {
           <p className="text-sm text-muted-foreground">Vendors you buy stock from.</p>
         </div>
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogTrigger render={<Button onClick={openAdd}>Add Vendor</Button>} />
+          <DialogTrigger render={<Button className="gradient-primary border-none" onClick={openAdd}>Add Vendor</Button>} />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Vendor" : "Add Vendor"}</DialogTitle>
@@ -343,6 +345,7 @@ export default function SuppliersPage() {
         className="max-w-sm"
       />
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -380,9 +383,7 @@ export default function SuppliersPage() {
                   <TableCell>{s.phone || "-"}</TableCell>
                   <TableCell>{s.city || "-"}</TableCell>
                   <TableCell className="text-right">
-                    {/* Deferred: hardcoded amber -> lib/status.ts text-warning token, left for the
-                        contacts redesign pass to avoid duplicate-effort with that phase. */}
-                    <span className={Number(s.outstanding_balance) > 0 ? "font-medium text-amber-600 dark:text-amber-500" : ""}>
+                    <span className={Number(s.outstanding_balance) > 0 ? "font-medium text-warning" : ""}>
                       Rs. {s.outstanding_balance}
                     </span>
                   </TableCell>
@@ -461,17 +462,14 @@ export default function SuppliersPage() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {/* Deferred: hardcoded red/green debit-credit row tinting -> semantic
-                                danger/success tokens, left for the contacts redesign pass to avoid
-                                duplicate-effort with that phase. */}
                             {ledger?.results.map((e) => (
                               <TableRow
                                 key={e.id}
                                 className={
                                   Number(e.debit_amount) > 0
-                                    ? "bg-red-50 dark:bg-red-950/20"
+                                    ? "bg-danger-container/40"
                                     : Number(e.credit_amount) > 0
-                                      ? "bg-green-50 dark:bg-green-950/20"
+                                      ? "bg-success-container/40"
                                       : undefined
                                 }
                               >
@@ -491,10 +489,10 @@ export default function SuppliersPage() {
                                 </TableCell>
                                 <TableCell>{e.transaction_date}</TableCell>
                                 <TableCell>{e.description}</TableCell>
-                                <TableCell className="text-right text-red-700 dark:text-red-400">
+                                <TableCell className="text-right text-danger">
                                   {Number(e.debit_amount) > 0 ? `Rs. ${e.debit_amount}` : "-"}
                                 </TableCell>
-                                <TableCell className="text-right text-green-700 dark:text-green-400">
+                                <TableCell className="text-right text-success">
                                   {Number(e.credit_amount) > 0 ? `Rs. ${e.credit_amount}` : "-"}
                                 </TableCell>
                                 <TableCell className="text-right">Rs. {e.balance}</TableCell>
@@ -632,6 +630,7 @@ export default function SuppliersPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }

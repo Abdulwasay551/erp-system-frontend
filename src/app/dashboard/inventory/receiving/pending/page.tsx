@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, openPdf } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { fadeInUp, staggerContainer } from "@/lib/motion";
 import { PackageCheck, PackageOpen, Plus, Download } from "lucide-react";
 
 interface Warehouse {
@@ -77,17 +79,21 @@ export default function PendingReceiptsPage() {
       ) : pending.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <PackageCheck className="size-8 opacity-50" />
+            <span className="flex size-12 items-center justify-center rounded-full bg-success-container text-success">
+              <PackageCheck className="size-6" />
+            </span>
             <p className="font-medium text-foreground">All caught up</p>
             <p className="text-sm">No pending vendor invoices - goods already received or none recorded yet.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-4">
+        <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col gap-4">
           {pending.map((bill) => (
-            <PendingBillCard key={bill.id} bill={bill} warehouses={warehouses} onDone={loadPending} />
+            <motion.div key={bill.id} variants={fadeInUp}>
+              <PendingBillCard bill={bill} warehouses={warehouses} onDone={loadPending} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -167,7 +173,9 @@ function PendingBillCard({
       <CardHeader>
         <CardTitle className="text-sm flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <PackageOpen className="size-4 text-muted-foreground" />
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-warning-container text-warning">
+              <PackageOpen className="size-3.5" />
+            </span>
             {bill.bill_number} &middot; {bill.supplier_name}
           </span>
           <span className="flex items-center gap-2 font-normal">

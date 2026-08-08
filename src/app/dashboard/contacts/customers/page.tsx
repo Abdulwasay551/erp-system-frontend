@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { fadeInUp } from "@/lib/motion";
 import { Users, Receipt, Download, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import {
   Table,
@@ -258,7 +260,7 @@ export default function CustomersPage() {
           <p className="text-sm text-muted-foreground">People and businesses you sell to.</p>
         </div>
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogTrigger render={<Button onClick={openAdd}>Add Customer</Button>} />
+          <DialogTrigger render={<Button className="gradient-primary border-none" onClick={openAdd}>Add Customer</Button>} />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Customer" : "Add Customer"}</DialogTitle>
@@ -305,6 +307,7 @@ export default function CustomersPage() {
         className="max-w-sm"
       />
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardContent className="pt-6">
           <Table>
@@ -336,9 +339,7 @@ export default function CustomersPage() {
                   <TableCell>{c.phone || "-"}</TableCell>
                   <TableCell>{c.cnic || "-"}</TableCell>
                   <TableCell className="text-right">
-                    {/* Deferred: hardcoded amber -> lib/status.ts text-warning token, left for the
-                        contacts redesign pass to avoid duplicate-effort with that phase. */}
-                    <span className={Number(c.outstanding_balance) > 0 ? "font-medium text-amber-600 dark:text-amber-500" : ""}>
+                    <span className={Number(c.outstanding_balance) > 0 ? "font-medium text-warning" : ""}>
                       Rs. {c.outstanding_balance}
                     </span>
                   </TableCell>
@@ -417,17 +418,14 @@ export default function CustomersPage() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {/* Deferred: hardcoded red/green debit-credit row tinting -> semantic
-                                danger/success tokens, left for the contacts redesign pass to avoid
-                                duplicate-effort with that phase. */}
                             {ledger?.results.map((e) => (
                               <TableRow
                                 key={e.id}
                                 className={
                                   Number(e.debit_amount) > 0
-                                    ? "bg-red-50 dark:bg-red-950/20"
+                                    ? "bg-danger-container/40"
                                     : Number(e.credit_amount) > 0
-                                      ? "bg-green-50 dark:bg-green-950/20"
+                                      ? "bg-success-container/40"
                                       : undefined
                                 }
                               >
@@ -447,10 +445,10 @@ export default function CustomersPage() {
                                 </TableCell>
                                 <TableCell>{e.transaction_date}</TableCell>
                                 <TableCell>{e.description}</TableCell>
-                                <TableCell className="text-right text-red-700 dark:text-red-400">
+                                <TableCell className="text-right text-danger">
                                   {Number(e.debit_amount) > 0 ? `Rs. ${e.debit_amount}` : "-"}
                                 </TableCell>
-                                <TableCell className="text-right text-green-700 dark:text-green-400">
+                                <TableCell className="text-right text-success">
                                   {Number(e.credit_amount) > 0 ? `Rs. ${e.credit_amount}` : "-"}
                                 </TableCell>
                                 <TableCell className="text-right">Rs. {e.balance}</TableCell>
@@ -588,6 +586,7 @@ export default function CustomersPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }
