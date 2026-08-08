@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
-import { FileText, Receipt, Undo2, Loader2, Download, Pencil } from "lucide-react";
+import { FileText, Receipt, Undo2, Loader2, Download, Pencil, Percent, Plus, Trash2 } from "lucide-react";
+import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
 import {
   Table,
   TableBody,
@@ -99,6 +100,40 @@ interface ReturnableItem {
   returnable_quantity: string;
 }
 
+interface InvoiceItemDetail {
+  id: number;
+  product: number;
+  product_name: string;
+  tracking_unit: number | null;
+  tracking_identifier: string | null;
+  quantity: string;
+  unit_price: string;
+  discounts: DiscountEntry[];
+}
+
+interface InvoiceDetail extends Invoice {
+  items: InvoiceItemDetail[];
+}
+
+interface EditableItem {
+  id?: number;
+  product_id: number;
+  product_name: string;
+  tracking_unit_id: number | null;
+  tracking_identifier: string | null;
+  unit_price: string;
+  quantity: string;
+  discounts: DiscountEntry[];
+}
+
+interface ProductResult {
+  id: number;
+  name: string;
+  sku: string;
+  tracking_method: string;
+  selling_price: string;
+}
+
 export default function InvoicesPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
@@ -134,6 +169,10 @@ export default function InvoicesPage() {
   const [editPaymentTerms, setEditPaymentTerms] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editItems, setEditItems] = useState<EditableItem[]>([]);
+  const [loadingEditItems, setLoadingEditItems] = useState(false);
+  const [editProductQuery, setEditProductQuery] = useState("");
+  const [editProductResults, setEditProductResults] = useState<ProductResult[]>([]);
 
   function load() {
     const params = new URLSearchParams({ page: String(page), ordering });
@@ -162,23 +201,98 @@ export default function InvoicesPage() {
     setMethod("cash");
   }
 
-  function openEdit(inv: Invoice) {
+  async function openEdit(inv: Invoice) {
     setEditFor(inv);
     setEditDueDate(inv.due_date ?? "");
     setEditPaymentTerms(inv.payment_terms ?? "");
     setEditNotes(inv.notes ?? "");
+    setEditItems([]);
+    setEditProductQuery("");
+    setEditProductResults([]);
+    setLoadingEditItems(true);
+    try {
+      const full = await api<InvoiceDetail>(`/api/sales/invoices/${inv.id}/`);
+      setEditItems(
+        full.items.map((it) => ({
+          id: it.id,
+          product_id: it.product,
+          product_name: it.product_name,
+          tracking_unit_id: it.tracking_unit,
+          tracking_identifier: it.tracking_identifier,
+          unit_price: it.unit_price,
+          quantity: it.quantity,
+          discounts: it.discounts ?? [],
+        }))
+      );
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load invoice items.");
+    } finally {
+      setLoadingEditItems(false);
+    }
+  }
+
+  function updateEditItem(index: number, patch: Partial<EditableItem>) {
+    setEditItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  }
+
+  function removeEditItem(index: number) {
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function searchEditProducts() {
+    if (!editProductQuery.trim()) return;
+    try {
+      const data = await api<ProductResult[] | { results: ProductResult[] }>(
+        `/api/products/products/?search=${encodeURIComponent(editProductQuery)}`
+      );
+      setEditProductResults(Array.isArray(data) ? data : data.results);
+    } catch {
+      toast.error("Product search failed.");
+    }
+  }
+
+  function addEditItem(p: ProductResult) {
+    if (p.tracking_method !== "none") {
+      toast.error("Tracked items (IMEI/serial) can't be added here - use POS for new phones.");
+      return;
+    }
+    setEditItems((prev) => [
+      ...prev,
+      {
+        product_id: p.id,
+        product_name: p.name,
+        tracking_unit_id: null,
+        tracking_identifier: null,
+        unit_price: p.selling_price,
+        quantity: "1",
+        discounts: [],
+      },
+    ]);
+    setEditProductQuery("");
+    setEditProductResults([]);
   }
 
   async function saveEdit() {
     if (!editFor) return;
+    if (editItems.length === 0) {
+      toast.error("An invoice needs at least one line item.");
+      return;
+    }
     setSavingEdit(true);
     try {
-      await api(`/api/sales/invoices/${editFor.id}/`, {
-        method: "PATCH",
+      await api(`/api/sales/invoices/${editFor.id}/edit/`, {
+        method: "POST",
         body: JSON.stringify({
           due_date: editDueDate || null,
           payment_terms: editPaymentTerms,
           notes: editNotes,
+          items: editItems.map((it) => ({
+            product_id: it.product_id,
+            tracking_id: it.tracking_unit_id ?? undefined,
+            quantity: it.tracking_unit_id ? undefined : it.quantity,
+            unit_price: it.unit_price,
+            discounts: it.discounts.filter((d) => Number(d.value) > 0),
+          })),
         }),
       });
       toast.success(`${editFor.invoice_number} updated.`);
@@ -399,6 +513,7 @@ export default function InvoicesPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {admin && (
                     <Dialog open={editFor?.id === inv.id} onOpenChange={(open) => !open && setEditFor(null)}>
                       <DialogTrigger
                         render={
@@ -407,37 +522,128 @@ export default function InvoicesPage() {
                           </Button>
                         }
                       />
-                      <DialogContent>
+                      <DialogContent className="max-w-2xl">
                         <DialogHeader>
                           <DialogTitle>Edit Invoice - {inv.invoice_number}</DialogTitle>
                         </DialogHeader>
                         <div className="flex flex-col gap-3">
-                          <p className="text-sm text-muted-foreground">
-                            Items and pricing are locked once an invoice is created - use Return to correct those.
-                            Only these details can be edited.
-                          </p>
-                          <div className="flex flex-col gap-2">
-                            <Label>Due Date (optional)</Label>
-                            <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <Label>Payment Terms (optional)</Label>
-                            <Input
-                              placeholder="e.g. Net 30, COD"
-                              value={editPaymentTerms}
-                              onChange={(e) => setEditPaymentTerms(e.target.value)}
-                            />
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="flex flex-col gap-2">
+                              <Label>Due Date (optional)</Label>
+                              <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Payment Terms (optional)</Label>
+                              <Input
+                                placeholder="e.g. Net 30, COD"
+                                value={editPaymentTerms}
+                                onChange={(e) => setEditPaymentTerms(e.target.value)}
+                              />
+                            </div>
                           </div>
                           <div className="flex flex-col gap-2">
                             <Label>Notes (optional)</Label>
                             <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
                           </div>
-                          <Button onClick={saveEdit} disabled={savingEdit}>
+
+                          <Label>Line Items</Label>
+                          {loadingEditItems ? (
+                            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                              <Loader2 className="size-4 animate-spin" /> Loading items...
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {editItems.map((it, i) => {
+                                const activeDiscounts = it.discounts.filter((d) => Number(d.value) > 0);
+                                return (
+                                  <div key={it.id ?? `new-${i}`} className="flex items-center gap-2 rounded-md border p-2 text-sm">
+                                    <span className="flex-1">
+                                      {it.product_name}
+                                      {it.tracking_identifier && (
+                                        <span className="ml-1 font-mono text-xs text-muted-foreground">
+                                          ({it.tracking_identifier})
+                                        </span>
+                                      )}
+                                    </span>
+                                    <Input
+                                      className="w-24"
+                                      placeholder="Price"
+                                      value={it.unit_price}
+                                      onChange={(e) => updateEditItem(i, { unit_price: e.target.value })}
+                                      inputMode="decimal"
+                                    />
+                                    {it.tracking_unit_id ? (
+                                      <span className="w-16 text-center text-muted-foreground">x1</span>
+                                    ) : (
+                                      <Input
+                                        className="w-16"
+                                        value={it.quantity}
+                                        onChange={(e) => updateEditItem(i, { quantity: e.target.value })}
+                                        inputMode="decimal"
+                                      />
+                                    )}
+                                    <Dialog>
+                                      <DialogTrigger
+                                        render={
+                                          <Button variant="outline" size="sm">
+                                            <Percent className="size-3.5" />
+                                            {activeDiscounts.length > 0 ? activeDiscounts.length : ""}
+                                          </Button>
+                                        }
+                                      />
+                                      <DialogContent>
+                                        <DialogHeader>
+                                          <DialogTitle>Discounts - {it.product_name}</DialogTitle>
+                                        </DialogHeader>
+                                        <DiscountEditor
+                                          value={it.discounts}
+                                          onChange={(d) => updateEditItem(i, { discounts: d })}
+                                        />
+                                      </DialogContent>
+                                    </Dialog>
+                                    <Button variant="ghost" size="sm" onClick={() => removeEditItem(i)}>
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="Add an untracked product by name..."
+                                  value={editProductQuery}
+                                  onChange={(e) => setEditProductQuery(e.target.value)}
+                                  onKeyDown={(e) => e.key === "Enter" && searchEditProducts()}
+                                />
+                                <Button type="button" variant="outline" onClick={searchEditProducts}>
+                                  Search
+                                </Button>
+                              </div>
+                              {editProductResults.length > 0 && (
+                                <div className="rounded-md border divide-y">
+                                  {editProductResults.map((p) => (
+                                    <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                                      <span>{p.name}</span>
+                                      <Button size="sm" onClick={() => addEditItem(p)}>
+                                        <Plus className="size-3.5" /> Add
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                To add a new phone/IMEI-tracked item, use POS for a new sale instead.
+                              </p>
+                            </div>
+                          )}
+
+                          <Button onClick={saveEdit} disabled={savingEdit || loadingEditItems}>
                             {savingEdit ? "Saving..." : "Save Changes"}
                           </Button>
                         </div>
                       </DialogContent>
                     </Dialog>
+                    )}
                     {Number(inv.outstanding_amount) > 0 && (
                       <Dialog open={payFor?.id === inv.id} onOpenChange={(open) => !open && setPayFor(null)}>
                         <DialogTrigger
