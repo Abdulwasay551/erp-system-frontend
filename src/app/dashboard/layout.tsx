@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -159,10 +159,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const admin = isAdmin(user);
   const visibleModules = MODULES.filter((mod) => !mod.adminOnly || admin);
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("erp_sidebar_collapsed") === "true";
-  });
+  // Always starts false to match the server-rendered HTML (SSR has no localStorage),
+  // then syncs from the saved preference once mounted on the client - reading
+  // localStorage directly in the initializer caused a hydration mismatch (and a full
+  // client-side re-render of the whole layout) for any visitor who'd collapsed the
+  // sidebar before.
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("erp_sidebar_collapsed") === "true");
+  }, []);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
