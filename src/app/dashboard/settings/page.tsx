@@ -94,8 +94,8 @@ export default function SettingsPage() {
   useEffect(loadUsers, [page, ordering]);
 
   useEffect(() => {
-    api<Role[]>("/api/auth/roles/")
-      .then(setRoles)
+    api<Paginated<Role>>("/api/auth/roles/")
+      .then((data) => setRoles(data.results))
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load roles."));
   }, []);
 

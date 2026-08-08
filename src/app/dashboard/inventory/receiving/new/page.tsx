@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,8 +50,8 @@ export default function NewReceiptPage() {
   async function searchSuppliers(q: string) {
     setSupplierSearching(true);
     try {
-      const data = await api<Supplier[]>(`/api/purchase/suppliers/?search=${encodeURIComponent(q)}`);
-      setSupplierOptions(data.map((s) => ({ value: String(s.id), label: s.name, description: s.city || undefined })));
+      const data = await api<Paginated<Supplier>>(`/api/purchase/suppliers/?search=${encodeURIComponent(q)}`);
+      setSupplierOptions(data.results.map((s) => ({ value: String(s.id), label: s.name, description: s.city || undefined })));
     } catch {
       // keep previous options on failure
     } finally {

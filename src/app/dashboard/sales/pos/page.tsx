@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,8 +100,8 @@ export default function POSPage() {
   async function searchCustomers(q: string) {
     setCustomerSearching(true);
     try {
-      const data = await api<Customer[]>(`/api/crm/customers/?search=${encodeURIComponent(q)}`);
-      setCustomerOptions(data.map((c) => ({ value: String(c.id), label: c.name, description: c.phone || undefined })));
+      const data = await api<Paginated<Customer>>(`/api/crm/customers/?search=${encodeURIComponent(q)}`);
+      setCustomerOptions(data.results.map((c) => ({ value: String(c.id), label: c.name, description: c.phone || undefined })));
     } catch {
       // keep previous options on failure
     } finally {

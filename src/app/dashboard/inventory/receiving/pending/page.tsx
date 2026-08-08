@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,8 +52,8 @@ export default function PendingReceiptsPage() {
   }, []);
 
   useEffect(() => {
-    api<Warehouse[]>("/api/inventory/warehouses/")
-      .then(setWarehouses)
+    api<Paginated<Warehouse>>("/api/inventory/warehouses/")
+      .then((data) => setWarehouses(data.results))
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load warehouses."));
     loadPending();
   }, [loadPending]);
