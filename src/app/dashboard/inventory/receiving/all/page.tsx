@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LoadingState, ErrorState } from "@/components/data-state";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface Bill {
   id: number;
@@ -38,8 +43,15 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   cancelled: "destructive",
 };
 
+const PAGE_SIZE = 25;
+
 export default function AllBillsPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [bills, setBills] = useState<Bill[] | null>(null);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("-bill_date");
   const [error, setError] = useState<string | null>(null);
   const [downloadingFor, setDownloadingFor] = useState<number | null>(null);
   const searchParams = useSearchParams();
@@ -48,12 +60,16 @@ export default function AllBillsPage() {
 
   function load() {
     setError(null);
-    api<Bill[]>("/api/purchase/bills/")
-      .then((data) => setBills(data.sort((a, b) => b.id - a.id)))
+    const params = new URLSearchParams({ page: String(page), ordering });
+    api<Paginated<Bill>>(`/api/purchase/bills/?${params}`)
+      .then((data) => {
+        setBills(data.results);
+        setCount(data.count);
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load bills."));
   }
 
-  useEffect(load, []);
+  useEffect(load, [page, ordering]);
 
   useEffect(() => {
     if (highlightId && bills) {
@@ -90,10 +106,14 @@ export default function AllBillsPage() {
               <TableRow>
                 <TableHead>Bill #</TableHead>
                 <TableHead>Supplier</TableHead>
-                <TableHead>Date</TableHead>
+                <SortableHead field="bill_date" ordering={ordering} onSort={setOrdering}>
+                  Date
+                </SortableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Received</TableHead>
-                <TableHead className="text-right">Total</TableHead>
+                <SortableHead field="total_amount" ordering={ordering} onSort={setOrdering} className="text-right">
+                  Total
+                </SortableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -128,7 +148,7 @@ export default function AllBillsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">Rs. {bill.total_amount}</TableCell>
-                  <TableCell>
+                  <TableCell className="flex items-center justify-end gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -137,11 +157,19 @@ export default function AllBillsPage() {
                     >
                       <Download className="size-3.5" />
                     </Button>
+                    {admin && (
+                      <DeleteButton
+                        label={`Bill ${bill.bill_number}`}
+                        onDelete={() => api(`/api/purchase/bills/${bill.id}/`, { method: "DELETE" })}
+                        onDeleted={load}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

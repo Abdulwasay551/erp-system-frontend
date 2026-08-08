@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +33,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface Customer {
   id: number;
@@ -70,8 +75,15 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+const PAGE_SIZE = 25;
+
 export default function CustomersPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("name");
   const [search, setSearch] = useState("");
   const [ledgerFor, setLedgerFor] = useState<Customer | null>(null);
   const [ledger, setLedger] = useState<LedgerPage | null>(null);
@@ -97,14 +109,18 @@ export default function CustomersPage() {
   const [reference, setReference] = useState("");
   const [paying, setPaying] = useState(false);
 
-  function loadCustomers(q?: string) {
-    const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-    api<Customer[]>(`/api/crm/customers/${qs}`)
-      .then(setCustomers)
+  function loadCustomers() {
+    const params = new URLSearchParams({ page: String(page), ordering });
+    if (search) params.set("search", search);
+    api<Paginated<Customer>>(`/api/crm/customers/?${params}`)
+      .then((data) => {
+        setCustomers(data.results);
+        setCount(data.count);
+      })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load customers."));
   }
 
-  useEffect(loadCustomers, []);
+  useEffect(loadCustomers, [page, ordering]);
 
   function ledgerQuery(page: number) {
     const params = new URLSearchParams({ page: String(page), page_size: "20" });
@@ -190,7 +206,7 @@ export default function CustomersPage() {
         toast.success("Customer added.");
       }
       setFormOpen(false);
-      loadCustomers(search);
+      loadCustomers();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to save customer.");
     } finally {
@@ -226,7 +242,7 @@ export default function CustomersPage() {
       });
       toast.success(`Payment recorded for ${payFor.name}.`);
       setPayFor(null);
-      loadCustomers(search);
+      loadCustomers();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to record payment.");
     } finally {
@@ -280,7 +296,12 @@ export default function CustomersPage() {
         placeholder="Search customers by name, phone, CNIC..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && loadCustomers(search)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            setPage(1);
+            loadCustomers();
+          }
+        }}
         className="max-w-sm"
       />
 
@@ -289,7 +310,9 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <SortableHead field="name" ordering={ordering} onSort={setOrdering}>
+                  Name
+                </SortableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>CNIC</TableHead>
                 <TableHead className="text-right">Outstanding</TableHead>
@@ -545,11 +568,19 @@ export default function CustomersPage() {
                           </div>
                         </DialogContent>
                     </Dialog>
+                    {admin && (
+                      <DeleteButton
+                        label={`Customer ${c.name}`}
+                        onDelete={() => api(`/api/crm/customers/${c.id}/`, { method: "DELETE" })}
+                        onDeleted={loadCustomers}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

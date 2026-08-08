@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface StaffUser {
   id: number;
@@ -48,9 +51,14 @@ interface Role {
   name: string;
 }
 
+const PAGE_SIZE = 25;
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<StaffUser[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("email");
   const [roles, setRoles] = useState<Role[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +79,18 @@ export default function SettingsPage() {
   const [editSaving, setEditSaving] = useState(false);
 
   function loadUsers() {
-    api<StaffUser[]>("/api/auth/users/")
-      .then(setUsers)
+    const params = new URLSearchParams({ page: String(page), ordering });
+    api<Paginated<StaffUser>>(`/api/auth/users/?${params}`)
+      .then((data) => {
+        setUsers(data.results);
+        setCount(data.count);
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load users."));
   }
 
+  useEffect(loadUsers, [page, ordering]);
+
   useEffect(() => {
-    loadUsers();
     api<Role[]>("/api/auth/roles/")
       .then(setRoles)
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load roles."));
@@ -218,8 +231,12 @@ export default function SettingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <SortableHead field="first_name" ordering={ordering} onSort={setOrdering}>
+                  Name
+                </SortableHead>
+                <SortableHead field="email" ordering={ordering} onSort={setOrdering}>
+                  Email
+                </SortableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead />
@@ -240,7 +257,7 @@ export default function SettingsPage() {
                       {u.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="flex items-center justify-end gap-2">
                     <Dialog open={editFor?.id === u.id} onOpenChange={(open) => !open && setEditFor(null)}>
                       <DialogTrigger
                         render={
@@ -318,11 +335,17 @@ export default function SettingsPage() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    <DeleteButton
+                      label={`${u.first_name} ${u.last_name}`.trim() || u.email}
+                      onDelete={() => api(`/api/auth/users/${u.id}/`, { method: "DELETE" })}
+                      onDeleted={loadUsers}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

@@ -23,6 +23,15 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+/** Shape every list endpoint now returns since the backend added DRF pagination
+ * (PageNumberPagination) - previously a bare array. */
+export interface Paginated<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 export class ApiError extends Error {
   status: number;
   data: unknown;

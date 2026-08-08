@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +34,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface Supplier {
   id: number;
@@ -79,8 +84,15 @@ const PAYMENT_METHODS = [
   { value: "online", label: "Online Payment" },
 ];
 
+const PAGE_SIZE = 25;
+
 export default function SuppliersPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("partner__name");
   const [search, setSearch] = useState("");
   const [ledgerFor, setLedgerFor] = useState<Supplier | null>(null);
   const [ledger, setLedger] = useState<LedgerPage | null>(null);
@@ -108,14 +120,18 @@ export default function SuppliersPage() {
   const [supplierType, setSupplierType] = useState("distributor");
   const [saving, setSaving] = useState(false);
 
-  function loadSuppliers(q?: string) {
-    const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-    api<Supplier[]>(`/api/purchase/suppliers/${qs}`)
-      .then(setSuppliers)
+  function loadSuppliers() {
+    const params = new URLSearchParams({ page: String(page), ordering });
+    if (search) params.set("search", search);
+    api<Paginated<Supplier>>(`/api/purchase/suppliers/?${params}`)
+      .then((data) => {
+        setSuppliers(data.results);
+        setCount(data.count);
+      })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load suppliers."));
   }
 
-  useEffect(loadSuppliers, []);
+  useEffect(loadSuppliers, [page, ordering]);
 
   function openAdd() {
     setEditingId(null);
@@ -157,7 +173,7 @@ export default function SuppliersPage() {
         toast.success("Vendor added.");
       }
       setFormOpen(false);
-      loadSuppliers(search);
+      loadSuppliers();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to save vendor.");
     } finally {
@@ -318,7 +334,12 @@ export default function SuppliersPage() {
         placeholder="Search vendors by name, phone, city..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && loadSuppliers(search)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            setPage(1);
+            loadSuppliers();
+          }
+        }}
         className="max-w-sm"
       />
 
@@ -327,7 +348,9 @@ export default function SuppliersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <SortableHead field="partner__name" ordering={ordering} onSort={setOrdering}>
+                  Name
+                </SortableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>City</TableHead>
@@ -589,11 +612,19 @@ export default function SuppliersPage() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    {admin && (
+                      <DeleteButton
+                        label={`Vendor ${s.name}`}
+                        onDelete={() => api(`/api/purchase/suppliers/${s.id}/`, { method: "DELETE" })}
+                        onDeleted={loadSuppliers}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

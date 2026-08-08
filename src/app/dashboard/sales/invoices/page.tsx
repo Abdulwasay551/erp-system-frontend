@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { api, ApiError, openPdf } from "@/lib/api";
+import { api, ApiError, openPdf, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 import { FileText, Receipt, Undo2, Loader2, Download, Pencil } from "lucide-react";
 import {
   Table,
@@ -66,9 +71,15 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 
 const STATUS_FILTERS = [
   { value: "all", label: "All" },
-  { value: "outstanding", label: "Outstanding" },
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Sent" },
+  { value: "partially_paid", label: "Partially Paid" },
   { value: "paid", label: "Paid" },
+  { value: "overdue", label: "Overdue" },
+  { value: "cancelled", label: "Cancelled" },
 ];
+
+const PAGE_SIZE = 25;
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
@@ -96,7 +107,12 @@ interface ReturnableItem {
 }
 
 export default function InvoicesPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("-invoice_date");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const [payFor, setPayFor] = useState<Invoice | null>(null);
@@ -127,12 +143,17 @@ export default function InvoicesPage() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   function load() {
-    api<Invoice[]>("/api/sales/invoices/")
-      .then(setInvoices)
+    const params = new URLSearchParams({ page: String(page), ordering });
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    api<Paginated<Invoice>>(`/api/sales/invoices/?${params}`)
+      .then((data) => {
+        setInvoices(data.results);
+        setCount(data.count);
+      })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load invoices."));
   }
 
-  useEffect(load, []);
+  useEffect(load, [page, ordering, statusFilter]);
 
   useEffect(() => {
     if (highlightId && invoices.length > 0) {
@@ -283,12 +304,6 @@ export default function InvoicesPage() {
     }
   }
 
-  const filtered = invoices.filter((inv) => {
-    if (statusFilter === "outstanding") return Number(inv.outstanding_amount) > 0;
-    if (statusFilter === "paid") return Number(inv.outstanding_amount) <= 0;
-    return true;
-  });
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -299,7 +314,12 @@ export default function InvoicesPage() {
         <Select
           items={Object.fromEntries(STATUS_FILTERS.map((s) => [s.value, s.label]))}
           value={statusFilter}
-          onValueChange={(v) => v && setStatusFilter(v)}
+          onValueChange={(v) => {
+            if (v) {
+              setStatusFilter(v);
+              setPage(1);
+            }
+          }}
         >
           <SelectTrigger className="w-40">
             <SelectValue />
@@ -319,10 +339,16 @@ export default function InvoicesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Invoice #</TableHead>
+                <SortableHead field="invoice_number" ordering={ordering} onSort={setOrdering}>
+                  Invoice #
+                </SortableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Total</TableHead>
+                <SortableHead field="invoice_date" ordering={ordering} onSort={setOrdering}>
+                  Date
+                </SortableHead>
+                <SortableHead field="total" ordering={ordering} onSort={setOrdering} className="text-right">
+                  Total
+                </SortableHead>
                 <TableHead className="text-right">Paid</TableHead>
                 <TableHead className="text-right">Outstanding</TableHead>
                 <TableHead>Status</TableHead>
@@ -330,7 +356,7 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {invoices.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
@@ -340,7 +366,7 @@ export default function InvoicesPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((inv) => (
+              {invoices.map((inv) => (
                 <TableRow
                   key={inv.id}
                   ref={(el) => {
@@ -592,11 +618,19 @@ export default function InvoicesPage() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    {admin && (
+                      <DeleteButton
+                        label={`Invoice ${inv.invoice_number}`}
+                        onDelete={() => api(`/api/sales/invoices/${inv.id}/`, { method: "DELETE" })}
+                        onDeleted={load}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

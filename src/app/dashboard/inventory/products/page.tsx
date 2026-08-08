@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +27,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { SearchableSelect } from "@/components/searchable-select";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface Product {
   id: number;
@@ -60,8 +65,15 @@ const TRACKING_METHODS = [
   { value: "imei", label: "IMEI", hint: "Phones/devices with a SIM slot." },
 ];
 
+const PAGE_SIZE = 25;
+
 export default function ProductsPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [products, setProducts] = useState<Product[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("name");
   const [query, setQuery] = useState("");
   const [vendorStock, setVendorStock] = useState<VendorStockRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -77,15 +89,20 @@ export default function ProductsPage() {
   const [sellingPrice, setSellingPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function loadProducts(search?: string) {
-    const qs = search ? `?search=${encodeURIComponent(search)}` : "";
-    api<Product[] | { results: Product[] }>(`/api/products/products/${qs}`)
-      .then((data) => setProducts(Array.isArray(data) ? data : data.results))
+  function loadProducts() {
+    const params = new URLSearchParams({ page: String(page), ordering });
+    if (query) params.set("search", query);
+    api<Paginated<Product>>(`/api/products/products/?${params}`)
+      .then((data) => {
+        setProducts(data.results);
+        setCount(data.count);
+      })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load products."));
   }
 
+  useEffect(loadProducts, [page, ordering]);
+
   useEffect(() => {
-    loadProducts();
     api<VendorStockRow[]>("/api/products/tracking/stock-by-vendor/")
       .then(setVendorStock)
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load vendor stock."));
@@ -128,7 +145,7 @@ export default function ProductsPage() {
       toast.success("Product added.");
       resetForm();
       setAddOpen(false);
-      loadProducts(query);
+      loadProducts();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to add product.");
     } finally {
@@ -239,26 +256,38 @@ export default function ProductsPage() {
             placeholder="Search by name, SKU, brand..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadProducts(query)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setPage(1);
+                loadProducts();
+              }
+            }}
             className="max-w-sm"
           />
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Name</TableHead>
+                <SortableHead field="sku" ordering={ordering} onSort={setOrdering}>
+                  SKU
+                </SortableHead>
+                <SortableHead field="name" ordering={ordering} onSort={setOrdering}>
+                  Name
+                </SortableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Tracking</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Selling</TableHead>
+                <SortableHead field="selling_price" ordering={ordering} onSort={setOrdering} className="text-right">
+                  Selling
+                </SortableHead>
                 <TableHead className="text-right">Available Units</TableHead>
                 <TableHead>Flags</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="size-6 opacity-50" />
                       <span>No products found - add one to start building your catalog.</span>
@@ -292,10 +321,20 @@ export default function ProductsPage() {
                       ))}
                     </div>
                   </TableCell>
+                  <TableCell className="text-right">
+                    {admin && (
+                      <DeleteButton
+                        label={`Product ${p.name}`}
+                        onDelete={() => api(`/api/products/products/${p.id}/`, { method: "DELETE" })}
+                        onDeleted={loadProducts}
+                      />
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
 

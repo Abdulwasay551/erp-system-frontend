@@ -11,6 +11,7 @@ import {
   Building2,
   Landmark,
   Settings,
+  Trash2,
   LogOut,
   ChevronsUpDown,
   PanelLeftClose,
@@ -20,6 +21,7 @@ import {
 import { RequireAuth } from "@/components/require-auth";
 import { GlobalSearch } from "@/components/global-search";
 import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -33,6 +35,7 @@ interface NavModule {
   label: string;
   icon: LucideIcon;
   children?: { href: string; label: string }[];
+  adminOnly?: boolean;
 }
 
 const MODULES: NavModule[] = [
@@ -75,6 +78,7 @@ const MODULES: NavModule[] = [
     ],
   },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/recycle-bin", label: "Recycle Bin", icon: Trash2, adminOnly: true },
 ];
 
 function initials(firstName?: string, lastName?: string) {
@@ -143,6 +147,8 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const admin = isAdmin(user);
+  const visibleModules = MODULES.filter((mod) => !mod.adminOnly || admin);
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -181,7 +187,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-col gap-1 p-2 flex-1 overflow-visible">
-          {MODULES.map((mod) => {
+          {visibleModules.map((mod) => {
             const Icon = mod.icon;
             const isModuleActive =
               pathname === mod.href || mod.children?.some((c) => c.href === pathname);

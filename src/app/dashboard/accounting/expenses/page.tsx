@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, Paginated } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +33,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination } from "@/components/pagination";
+import { SortableHead } from "@/components/sortable-head";
+import { DeleteButton } from "@/components/delete-button";
 
 interface Expense {
   id: number;
@@ -65,8 +70,15 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+const PAGE_SIZE = 25;
+
 export default function ExpensesPage() {
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [ordering, setOrdering] = useState("-expense_date");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -78,15 +90,19 @@ export default function ExpensesPage() {
 
   function load() {
     const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-    api<Expense[]>("/api/accounting/expenses/")
-      .then(setExpenses)
+    const params = new URLSearchParams({ page: String(page), ordering });
+    api<Paginated<Expense>>(`/api/accounting/expenses/?${params}`)
+      .then((data) => {
+        setExpenses(data.results);
+        setCount(data.count);
+      })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expenses."));
     api<Summary>(`/api/accounting/expenses/summary/?month=${month}`)
       .then(setSummary)
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expense summary."));
   }
 
-  useEffect(load, []);
+  useEffect(load, [page, ordering]);
 
   async function addExpense() {
     if (!amount) {
@@ -225,17 +241,22 @@ export default function ExpensesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
+                <SortableHead field="expense_date" ordering={ordering} onSort={setOrdering}>
+                  Date
+                </SortableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <SortableHead field="amount" ordering={ordering} onSort={setOrdering} className="text-right">
+                  Amount
+                </SortableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {expenses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <Receipt className="size-6 opacity-50" />
                       <span>No expenses recorded yet.</span>
@@ -252,10 +273,20 @@ export default function ExpensesPage() {
                   <TableCell>{e.description || "-"}</TableCell>
                   <TableCell className="capitalize">{e.payment_method.replace("_", " ")}</TableCell>
                   <TableCell className="text-right">Rs. {e.amount}</TableCell>
+                  <TableCell className="text-right">
+                    {admin && (
+                      <DeleteButton
+                        label={`Expense of Rs. ${e.amount}`}
+                        onDelete={() => api(`/api/accounting/expenses/${e.id}/`, { method: "DELETE" })}
+                        onDeleted={load}
+                      />
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>
