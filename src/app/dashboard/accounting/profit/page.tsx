@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -11,9 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BarChart } from "@/components/charts/bar-chart";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Package, Receipt, CalendarClock, type LucideIcon } from "lucide-react";
 import { ErrorState, StatCardSkeletonGrid } from "@/components/data-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fadeInUp, staggerContainer } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 interface DayRow {
   date: string;
@@ -41,7 +44,7 @@ const PERIODS = [
   { value: "90", label: "Last 90 days" },
 ];
 
-function money(v: string) {
+function money(v: string | number) {
   const n = Number(v);
   return `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -50,10 +53,12 @@ function StatCard({
   label,
   value,
   tone,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   tone?: "positive" | "negative" | "neutral";
+  icon: LucideIcon;
 }) {
   const color =
     tone === "positive"
@@ -61,13 +66,22 @@ function StatCard({
       : tone === "negative"
       ? "text-danger"
       : "";
+  const badgeColor =
+    tone === "positive"
+      ? "bg-success-container text-success"
+      : tone === "negative"
+      ? "bg-danger-container text-danger"
+      : "bg-primary/10 text-primary";
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold ${color}`}>{value}</p>
+    <Card className="h-full">
+      <CardContent className="flex items-center gap-3">
+        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", badgeColor)}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          <p className={`text-xl font-semibold ${color}`}>{value}</p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -91,6 +105,8 @@ export default function ProfitAndLossPage() {
   useEffect(load, [period]);
 
   const netProfit = report ? Number(report.totals.net_profit) : 0;
+  const today = report && report.days.length > 0 ? report.days[report.days.length - 1] : null;
+  const todayNet = today ? Number(today.net_profit) : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -134,27 +150,71 @@ export default function ProfitAndLossPage() {
 
       {report && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          {today && (
+            <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+              <Card className="gradient-primary border-none shadow-md">
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/20">
+                      <CalendarClock className="size-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm text-primary-foreground/80">Today &middot; {today.date}</p>
+                      <p className="text-2xl font-bold sm:text-3xl">{money(today.revenue)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6 pl-14 sm:pl-0">
+                    <div>
+                      <p className="text-xs text-primary-foreground/70">COGS + Expenses</p>
+                      <p className="text-base font-semibold">
+                        {money(Number(today.cogs) + Number(today.expenses))}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-primary-foreground/70">Net Profit</p>
+                      <p className="text-base font-semibold flex items-center gap-1">
+                        {todayNet >= 0 ? (
+                          <TrendingUp className="size-3.5" />
+                        ) : (
+                          <TrendingDown className="size-3.5" />
+                        )}
+                        {money(today.net_profit)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={staggerContainer}
+            className="grid grid-cols-2 gap-4 md:grid-cols-5"
+          >
             {[
-              { label: "Revenue", value: money(report.totals.revenue), tone: undefined },
-              { label: "Cost of Goods", value: money(report.totals.cogs), tone: undefined },
-              { label: "Gross Profit", value: money(report.totals.gross_profit), tone: "positive" as const },
-              { label: "Expenses", value: money(report.totals.expenses), tone: undefined },
+              { label: "Revenue", value: money(report.totals.revenue), tone: undefined, icon: Wallet },
+              { label: "Cost of Goods", value: money(report.totals.cogs), tone: undefined, icon: Package },
+              {
+                label: "Gross Profit",
+                value: money(report.totals.gross_profit),
+                tone: "positive" as const,
+                icon: TrendingUp,
+              },
+              { label: "Expenses", value: money(report.totals.expenses), tone: undefined, icon: Receipt },
               {
                 label: "Net Profit",
                 value: money(report.totals.net_profit),
                 tone: netProfit >= 0 ? ("positive" as const) : ("negative" as const),
+                icon: netProfit >= 0 ? TrendingUp : TrendingDown,
               },
-            ].map((s, i) => (
-              <div
-                key={s.label}
-                className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-                style={{ animationDelay: `${i * 60}ms`, animationDuration: "400ms" }}
-              >
-                <StatCard label={s.label} value={s.value} tone={s.tone} />
-              </div>
+            ].map((s) => (
+              <motion.div key={s.label} variants={fadeInUp}>
+                <StatCard label={s.label} value={s.value} tone={s.tone} icon={s.icon} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
 
           <Card className="animate-in fade-in duration-500">
             <CardHeader>

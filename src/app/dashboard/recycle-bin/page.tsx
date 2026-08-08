@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, RotateCcw, AlertTriangle } from "lucide-react";
+import { fadeInUp, staggerContainer } from "@/lib/motion";
 import {
   Table,
   TableBody,
@@ -145,8 +147,8 @@ function RecycleBinContent() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col gap-6">
+      <motion.div variants={fadeInUp} className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Recycle Bin</h1>
           <p className="text-sm text-muted-foreground">
@@ -199,8 +201,9 @@ function RecycleBinContent() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
+      <motion.div variants={fadeInUp}>
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">{error ? error : "Deleted items"}</CardTitle>
@@ -230,7 +233,12 @@ function RecycleBinContent() {
               {items?.map((item) => (
                 <TableRow key={rowKey(item)}>
                   <TableCell>
-                    <Badge variant="outline">{formatModel(item.model)}</Badge>
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-neutral-status-container text-neutral-status">
+                        <Trash2 className="size-3.5" />
+                      </span>
+                      <Badge variant="outline">{formatModel(item.model)}</Badge>
+                    </div>
                   </TableCell>
                   <TableCell className="font-medium">{item.repr}</TableCell>
                   <TableCell>{item.deleted_at ? new Date(item.deleted_at).toLocaleString() : "-"}</TableCell>
@@ -277,6 +285,7 @@ function RecycleBinContent() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

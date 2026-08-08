@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { fadeInUp } from "@/lib/motion";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -30,9 +32,24 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp} className="w-full max-w-sm">
+      <Card className="w-full">
         <CardHeader className="items-center text-center">
-          <Image src="/logo.jpg" alt="Mobile Corner" width={64} height={64} className="rounded-full mb-2" />
+          <div className="relative mb-2 flex size-24 items-center justify-center">
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: "radial-gradient(circle, color-mix(in srgb, var(--primary) 25%, transparent) 0%, transparent 70%)",
+              }}
+            />
+            <Image
+              src="/logo.jpg"
+              alt="Mobile Corner"
+              width={64}
+              height={64}
+              className="relative rounded-full"
+            />
+          </div>
           <CardTitle>Mobile Corner ERP</CardTitle>
           <CardDescription>Sign in to your shop account</CardDescription>
         </CardHeader>
@@ -67,6 +84,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }

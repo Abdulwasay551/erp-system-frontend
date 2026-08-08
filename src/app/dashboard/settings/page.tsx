@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api, ApiError, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -9,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Pencil } from "lucide-react";
+import { Pencil, UserRound } from "lucide-react";
+import { fadeInUp } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -166,7 +169,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Staff Accounts</h1>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button>Add Staff</Button>} />
+          <DialogTrigger render={<Button className="gradient-primary border-none">Add Staff</Button>} />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Staff Account</DialogTitle>
@@ -221,6 +224,7 @@ export default function SettingsPage() {
         </Dialog>
       </div>
 
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
@@ -246,16 +250,28 @@ export default function SettingsPage() {
               {users.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell>
-                    {u.first_name} {u.last_name}
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <UserRound className="size-4" />
+                      </span>
+                      <span className="font-medium">
+                        {u.first_name} {u.last_name}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{u.role_name}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={u.is_active ? "default" : "secondary"}>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                        u.is_active ? "bg-success-container text-success" : "bg-neutral-status-container text-neutral-status"
+                      )}
+                    >
                       {u.is_active ? "Active" : "Inactive"}
-                    </Badge>
+                    </span>
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
                     <Dialog open={editFor?.id === u.id} onOpenChange={(open) => !open && setEditFor(null)}>
@@ -348,6 +364,7 @@ export default function SettingsPage() {
           <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPageChange={setPage} />
         </CardContent>
       </Card>
+      </motion.div>
     </div>
   );
 }
