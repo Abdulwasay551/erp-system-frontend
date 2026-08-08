@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -16,6 +17,9 @@ import {
   ChevronsUpDown,
   PanelLeftClose,
   PanelLeftOpen,
+  Monitor,
+  Sun,
+  Moon,
   type LucideIcon,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
@@ -27,6 +31,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -147,6 +155,7 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const admin = isAdmin(user);
   const visibleModules = MODULES.filter((mod) => !mod.adminOnly || admin);
   const pathname = usePathname();
@@ -275,6 +284,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               }
             />
             <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Appearance</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+                <DropdownMenuRadioItem value="system">
+                  <Monitor className="size-4" /> System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="size-4" /> Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="size-4" /> Dark
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} variant="destructive">
                 <LogOut className="size-4" />
                 Log out
