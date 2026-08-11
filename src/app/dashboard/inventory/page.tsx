@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Package, FilePlus2, PackageOpen } from "lucide-react";
+import { Package, FilePlus2, PackageOpen, History } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,12 @@ export default function InventoryModulePage() {
               <Badge variant="default">{stats.pending_vendor_receipts} waiting</Badge>
             ) : undefined
           }
+        />
+        <ModuleLinkCard
+          href="/dashboard/inventory/receiving/all"
+          icon={History}
+          title="All Vendor Bills"
+          description="Browse past vendor invoices and receipt history"
         />
         <ModuleLinkCard
           href="/dashboard/inventory/products"

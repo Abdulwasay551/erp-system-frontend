@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fadeInUp } from "@/lib/motion";
-import { Truck, Download, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { Truck, Download, ChevronLeft, ChevronRight, Pencil, ArrowLeftRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -86,6 +86,18 @@ const PAYMENT_METHODS = [
   { value: "online", label: "Online Payment" },
 ];
 
+// Distinct from PAYMENT_METHODS above (which matches PurchasePayment.payment_method,
+// using "check" and no credit_card/other) - the ledger adjustment endpoint is backed by
+// SupplierLedgerAdjustment.payment_method, whose choices use "cheque" and add credit_card/other.
+const ADJUSTMENT_PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "cheque", label: "Cheque" },
+  { value: "credit_card", label: "Credit Card" },
+  { value: "online", label: "Online Payment" },
+  { value: "other", label: "Other" },
+];
+
 const PAGE_SIZE = 25;
 
 export default function SuppliersPage() {
@@ -110,6 +122,14 @@ export default function SuppliersPage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [paying, setPaying] = useState(false);
+
+  const [adjustFor, setAdjustFor] = useState<Supplier | null>(null);
+  const [adjustEntryType, setAdjustEntryType] = useState<"debit" | "credit">("debit");
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustMethod, setAdjustMethod] = useState("cash");
+  const [adjustReference, setAdjustReference] = useState("");
+  const [adjustDescription, setAdjustDescription] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -260,6 +280,48 @@ export default function SuppliersPage() {
       toast.error(e instanceof ApiError ? e.message : "Failed to record payment.");
     } finally {
       setPaying(false);
+    }
+  }
+
+  function openAdjust(supplier: Supplier) {
+    setAdjustFor(supplier);
+    setAdjustEntryType("debit");
+    setAdjustAmount("");
+    setAdjustMethod("cash");
+    setAdjustReference("");
+    setAdjustDescription("");
+  }
+
+  async function submitAdjustment() {
+    if (!adjustFor || !adjustAmount || Number(adjustAmount) <= 0) {
+      toast.error("Enter a valid amount.");
+      return;
+    }
+    if (!adjustDescription.trim()) {
+      toast.error("A description/reason is required.");
+      return;
+    }
+    setAdjusting(true);
+    try {
+      await api("/api/purchase/supplier-ledger-adjustments/", {
+        method: "POST",
+        body: JSON.stringify({
+          supplier: adjustFor.id,
+          entry_type: adjustEntryType,
+          amount: adjustAmount,
+          payment_method: adjustMethod,
+          reference: adjustReference || undefined,
+          description: adjustDescription,
+          transaction_date: new Date().toISOString().slice(0, 10),
+        }),
+      });
+      toast.success(`${adjustEntryType === "debit" ? "Debit" : "Credit"} recorded for ${adjustFor.name}.`);
+      setAdjustFor(null);
+      loadSuppliers();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to record adjustment.");
+    } finally {
+      setAdjusting(false);
     }
   }
 
@@ -615,6 +677,98 @@ export default function SuppliersPage() {
                         </div>
                       </DialogContent>
                     </Dialog>
+
+                    {admin && (
+                      <Dialog open={adjustFor?.id === s.id} onOpenChange={(open) => !open && setAdjustFor(null)}>
+                        <DialogTrigger
+                          render={
+                            <Button size="sm" variant="outline" onClick={() => openAdjust(s)}>
+                              <ArrowLeftRight className="size-3.5" /> Debit/Credit
+                            </Button>
+                          }
+                        />
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Ledger Adjustment - {s.name}</DialogTitle>
+                          </DialogHeader>
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-2">
+                              <Label>Entry Type</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setAdjustEntryType("debit")}
+                                  className={`rounded-md border px-2.5 py-2 text-left text-xs transition-colors ${
+                                    adjustEntryType === "debit"
+                                      ? "border-danger bg-danger-container/40 text-danger font-medium"
+                                      : "hover:bg-accent"
+                                  }`}
+                                >
+                                  Debit
+                                  <div className="text-sm font-semibold">You owe more</div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAdjustEntryType("credit")}
+                                  className={`rounded-md border px-2.5 py-2 text-left text-xs transition-colors ${
+                                    adjustEntryType === "credit"
+                                      ? "border-success bg-success-container/40 text-success font-medium"
+                                      : "hover:bg-accent"
+                                  }`}
+                                >
+                                  Credit
+                                  <div className="text-sm font-semibold">You owe less</div>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Amount</Label>
+                              <Input
+                                value={adjustAmount}
+                                onChange={(e) => setAdjustAmount(e.target.value)}
+                                inputMode="decimal"
+                                placeholder="0.00"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Payment Method</Label>
+                              <Select
+                                items={Object.fromEntries(ADJUSTMENT_PAYMENT_METHODS.map((m) => [m.value, m.label]))}
+                                value={adjustMethod}
+                                onValueChange={(v) => v && setAdjustMethod(v)}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ADJUSTMENT_PAYMENT_METHODS.map((m) => (
+                                    <SelectItem key={m.value} value={m.value}>
+                                      {m.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Reference (optional)</Label>
+                              <Input value={adjustReference} onChange={(e) => setAdjustReference(e.target.value)} />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Label>Description / Reason</Label>
+                              <Input
+                                value={adjustDescription}
+                                onChange={(e) => setAdjustDescription(e.target.value)}
+                                placeholder="Why is this being adjusted?"
+                              />
+                            </div>
+                            <Button onClick={submitAdjustment} disabled={adjusting}>
+                              {adjusting ? "Saving..." : `Record ${adjustEntryType === "debit" ? "Debit" : "Credit"}`}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+
                     {admin && (
                       <DeleteButton
                         label={`Vendor ${s.name}`}

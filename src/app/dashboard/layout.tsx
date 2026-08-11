@@ -64,6 +64,7 @@ const MODULES: NavModule[] = [
     children: [
       { href: "/dashboard/inventory/receiving/new", label: "New Vendor Invoice" },
       { href: "/dashboard/inventory/receiving/pending", label: "Pending Receipts" },
+      { href: "/dashboard/inventory/receiving/all", label: "All Vendor Bills" },
       { href: "/dashboard/inventory/products", label: "Products" },
       { href: "/dashboard/inventory/lookup", label: "Item Lookup" },
     ],
@@ -99,14 +100,10 @@ interface Crumb {
   href?: string;
 }
 
-// Falls back to matching by longest prefix (so e.g. /dashboard/inventory/receiving/all,
-// which isn't one of the sidebar's own child links, still resolves to "Inventory /
-// Vendor Bills" instead of just "Dashboard").
+// Falls back to matching by longest prefix for paths not in the sidebar's own child
+// links (e.g. the receiving hub page itself).
 const EXTRA_LABELS: Record<string, string> = {
   "/dashboard/inventory/receiving": "Receiving",
-  "/dashboard/inventory/receiving/all": "All Vendor Bills",
-  "/dashboard/inventory/receiving/new": "New Vendor Invoice",
-  "/dashboard/inventory/receiving/pending": "Pending Receipts",
 };
 
 function getBreadcrumbs(pathname: string): Crumb[] {

@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserRound, Download, TriangleAlert, Percent } from "lucide-react";
+import { UserRound, Download, TriangleAlert, Percent, ScanLine } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry, computeDiscountTotal } from "@/components/discount-editor";
+import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 
 interface Customer {
   id: number;
@@ -103,6 +104,7 @@ export default function POSPage() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<CheckoutResponse | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const cartSubtotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
   const lineDiscountsTotal = cart.reduce(
@@ -124,11 +126,12 @@ export default function POSPage() {
     }
   }
 
-  async function runSearch() {
-    if (!query.trim()) return;
+  async function runSearch(override?: string) {
+    const q = override ?? query;
+    if (!q.trim()) return;
     setSearching(true);
     try {
-      const data = await api<SearchResult[]>(`/api/sales/pos/search/?q=${encodeURIComponent(query)}`);
+      const data = await api<SearchResult[]>(`/api/sales/pos/search/?q=${encodeURIComponent(q)}`);
       setResults(data);
       if (data.length === 0) toast.info("No matching products found.");
     } catch (e) {
@@ -136,6 +139,11 @@ export default function POSPage() {
     } finally {
       setSearching(false);
     }
+  }
+
+  function handleScan(code: string) {
+    setQuery(code);
+    runSearch(code);
   }
 
   function addToCart(item: SearchResult) {
@@ -242,10 +250,14 @@ export default function POSPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
               />
-              <Button onClick={runSearch} disabled={searching}>
+              <Button onClick={() => runSearch()} disabled={searching}>
                 {searching ? "..." : "Search"}
               </Button>
+              <Button variant="outline" size="icon" onClick={() => setScannerOpen(true)} title="Scan with camera">
+                <ScanLine className="size-4" />
+              </Button>
             </div>
+            <BarcodeScannerDialog open={scannerOpen} onOpenChange={setScannerOpen} onScan={handleScan} />
 
             {results.length > 0 && (
               <Table>

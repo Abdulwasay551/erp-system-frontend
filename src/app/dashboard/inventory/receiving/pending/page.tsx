@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { fadeInUp, staggerContainer } from "@/lib/motion";
-import { PackageCheck, PackageOpen, Plus, Download } from "lucide-react";
+import { PackageCheck, PackageOpen, Plus, Download, ScanLine } from "lucide-react";
+import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 
 interface Warehouse {
   id: number;
@@ -121,6 +122,20 @@ function PendingBillCard({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [scanningItemId, setScanningItemId] = useState<number | null>(null);
+
+  function appendScannedCode(itemId: number, code: string) {
+    setCodes((prev) => {
+      const existing = prev[itemId] || "";
+      const lines = existing.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.includes(code)) {
+        toast.info("Code already scanned for this item.");
+        return prev;
+      }
+      lines.push(code);
+      return { ...prev, [itemId]: lines.join("\n") };
+    });
+  }
 
   async function downloadPdf() {
     setDownloadingPdf(true);
@@ -223,16 +238,36 @@ function PendingBillCard({
                 className="max-w-xs"
               />
             ) : (
-              <textarea
-                className="w-full rounded-md border p-2 text-sm font-mono"
-                rows={3}
-                placeholder={`Scan/paste ${item.tracking_type} codes, one per line`}
-                value={codes[item.id] || ""}
-                onChange={(e) => setCodes((prev) => ({ ...prev, [item.id]: e.target.value }))}
-              />
+              <div className="flex gap-2">
+                <textarea
+                  className="w-full rounded-md border p-2 text-sm font-mono"
+                  rows={3}
+                  placeholder={`Scan/paste ${item.tracking_type} codes, one per line`}
+                  value={codes[item.id] || ""}
+                  onChange={(e) => setCodes((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => setScanningItemId(item.id)}
+                  title="Scan with camera"
+                >
+                  <ScanLine className="size-4" />
+                </Button>
+              </div>
             )}
           </div>
         ))}
+
+        <BarcodeScannerDialog
+          open={scanningItemId !== null}
+          onOpenChange={(open) => !open && setScanningItemId(null)}
+          onScan={(code) => {
+            if (scanningItemId !== null) appendScannedCode(scanningItemId, code);
+          }}
+        />
 
         <Input
           placeholder="Optional review note"
