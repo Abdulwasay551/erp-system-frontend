@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, downloadFile } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fadeInUp } from "@/lib/motion";
-import { CloudOff, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CloudOff, DatabaseBackup, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 
 interface SyncStatus {
   paired: boolean;
@@ -34,6 +34,7 @@ export default function DesktopSyncSettingsPage() {
   const [password, setPassword] = useState("");
   const [pairing, setPairing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [downloadingBackup, setDownloadingBackup] = useState<"json" | "excel" | null>(null);
 
   useEffect(() => {
     setIsDesktop(process.env.NEXT_PUBLIC_IS_DESKTOP === "true");
@@ -89,6 +90,22 @@ export default function DesktopSyncSettingsPage() {
       toast.error(e instanceof ApiError ? e.message : "Sync failed.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function downloadBackup(format: "json" | "excel") {
+    setDownloadingBackup(format);
+    try {
+      if (format === "json") {
+        await downloadFile("/api/core/export-backup/", "mobile-corner-backup.json");
+      } else {
+        await downloadFile("/api/core/export-backup/excel/", "mobile-corner-backup.xlsx");
+      }
+      toast.success("Backup downloaded - move it to a USB drive or cloud folder for safekeeping.");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to download backup.");
+    } finally {
+      setDownloadingBackup(null);
     }
   }
 
@@ -198,6 +215,39 @@ export default function DesktopSyncSettingsPage() {
               won&apos;t appear on the web dashboard or other devices yet. This page only pulls the latest
               data down from production.
             </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DatabaseBackup className="size-4" /> Disaster Recovery Backup
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Download a full snapshot of every company&apos;s data on this system - keep a copy on a USB
+              drive or cloud folder in case production&apos;s database is ever lost. If that happens, this
+              file can seed a brand-new backend from scratch. Only available to superuser accounts.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => downloadBackup("json")}
+                disabled={downloadingBackup !== null}
+              >
+                {downloadingBackup === "json" ? "Downloading..." : "Download Backup (.json)"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => downloadBackup("excel")}
+                disabled={downloadingBackup !== null}
+              >
+                {downloadingBackup === "excel" ? "Downloading..." : "Download Backup (.xlsx, for review)"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </motion.div>

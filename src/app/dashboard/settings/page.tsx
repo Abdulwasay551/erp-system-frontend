@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { api, ApiError, Paginated } from "@/lib/api";
+import { api, ApiError, Paginated, downloadFile } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, UserRound } from "lucide-react";
+import { DatabaseBackup, Pencil, UserRound } from "lucide-react";
 import { fadeInUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
@@ -80,6 +81,24 @@ export default function SettingsPage() {
   const [editActive, setEditActive] = useState(true);
   const [editPassword, setEditPassword] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+
+  const [downloadingBackup, setDownloadingBackup] = useState<"json" | "excel" | null>(null);
+
+  async function downloadBackup(format: "json" | "excel") {
+    setDownloadingBackup(format);
+    try {
+      if (format === "json") {
+        await downloadFile("/api/core/export-backup/", "mobile-corner-backup.json");
+      } else {
+        await downloadFile("/api/core/export-backup/excel/", "mobile-corner-backup.xlsx");
+      }
+      toast.success("Backup downloaded.");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to download backup.");
+    } finally {
+      setDownloadingBackup(null);
+    }
+  }
 
   function loadUsers() {
     const params = new URLSearchParams({ page: String(page), ordering });
@@ -223,6 +242,41 @@ export default function SettingsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {isAdmin(currentUser) && (
+        <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <DatabaseBackup className="size-4" /> Disaster Recovery Backup
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Download a full snapshot of every company&apos;s data on this system - keep it somewhere
+                safe (a USB drive, cloud folder) in case production&apos;s database is ever lost. Only
+                available to superuser accounts.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => downloadBackup("json")}
+                  disabled={downloadingBackup !== null}
+                >
+                  {downloadingBackup === "json" ? "Downloading..." : "Download Backup (.json)"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => downloadBackup("excel")}
+                  disabled={downloadingBackup !== null}
+                >
+                  {downloadingBackup === "excel" ? "Downloading..." : "Download Backup (.xlsx, for review)"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>

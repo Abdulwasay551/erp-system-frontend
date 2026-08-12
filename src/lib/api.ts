@@ -118,4 +118,32 @@ export async function openPdf(path: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/**
+ * Fetches a binary endpoint with the auth header attached and saves it to disk via a
+ * synthetic <a download> click. Works the same in the browser and inside the desktop
+ * app's WebView2 shell (which handles the download the same native "Save As"/Downloads-
+ * folder way Edge does) - no separate Tauri dialog/fs plugin needed for this.
+ */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await res.json().catch(() => null) : null;
+    const message = (data && (data.error || data.detail)) || res.statusText;
+    throw new ApiError(res.status, data, message);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export { API_BASE_URL };
