@@ -81,7 +81,6 @@ export default function ProductsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
-  const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [trackingMethod, setTrackingMethod] = useState("none");
@@ -114,7 +113,6 @@ export default function ProductsPage() {
   function resetForm() {
     setName("");
     setBrand("");
-    setSku("");
     setBarcode("");
     setCategoryId(null);
     setTrackingMethod("none");
@@ -134,7 +132,6 @@ export default function ProductsPage() {
         body: JSON.stringify({
           name,
           brand,
-          sku: sku.trim() || undefined,
           barcode: barcode || null,
           category: categoryId ? Number(categoryId) : null,
           tracking_method: trackingMethod,
@@ -184,20 +181,14 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-2">
-                  <Label>SKU (optional)</Label>
-                  <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Auto-generated if left blank" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Category (optional)</Label>
-                  <SearchableSelect
-                    value={categoryId}
-                    onValueChange={setCategoryId}
-                    options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
-                    placeholder="Select category"
-                  />
-                </div>
+              <div className="flex flex-col gap-2">
+                <Label>Category (optional)</Label>
+                <SearchableSelect
+                  value={categoryId}
+                  onValueChange={setCategoryId}
+                  options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
+                  placeholder="Select category"
+                />
               </div>
 
               <div className="flex flex-col gap-2">
