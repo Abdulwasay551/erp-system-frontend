@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fadeInUp } from "@/lib/motion";
-import { CloudOff, DatabaseBackup, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertTriangle, CloudOff, DatabaseBackup, RefreshCw, ShieldCheck, TriangleAlert, X } from "lucide-react";
 
 interface SyncStatus {
   paired: boolean;
@@ -20,6 +20,17 @@ interface SyncStatus {
   last_synced_at?: string | null;
   auth_required?: boolean;
   last_result?: { status: string; reason?: string; objects_imported?: number } | null;
+  pending_push_count?: number;
+  failed_push_count?: number;
+}
+
+interface SyncConflict {
+  id: number;
+  summary: string;
+  method: string;
+  path: string;
+  error_message: string;
+  created_at: string;
 }
 
 const DEFAULT_PRODUCTION_URL = "https://erp-system-seven-eosin.vercel.app";
@@ -35,6 +46,8 @@ export default function DesktopSyncSettingsPage() {
   const [pairing, setPairing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [downloadingBackup, setDownloadingBackup] = useState<"json" | "excel" | null>(null);
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [discardingId, setDiscardingId] = useState<number | null>(null);
 
   useEffect(() => {
     setIsDesktop(process.env.NEXT_PUBLIC_IS_DESKTOP === "true");
@@ -46,9 +59,31 @@ export default function DesktopSyncSettingsPage() {
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load sync status."));
   }
 
+  function loadConflicts() {
+    api<SyncConflict[]>("/api/core/sync-conflicts/")
+      .then(setConflicts)
+      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load sync conflicts."));
+  }
+
   useEffect(() => {
-    if (isDesktop) loadStatus();
+    if (isDesktop) {
+      loadStatus();
+      loadConflicts();
+    }
   }, [isDesktop]);
+
+  async function discardConflict(id: number) {
+    setDiscardingId(id);
+    try {
+      await api(`/api/core/sync-conflicts/${id}/discard/`, { method: "POST" });
+      setConflicts((prev) => prev.filter((c) => c.id !== id));
+      loadStatus();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to discard.");
+    } finally {
+      setDiscardingId(null);
+    }
+  }
 
   async function pair() {
     if (!productionUrl || !email || !password) {
@@ -86,6 +121,7 @@ export default function DesktopSyncSettingsPage() {
         toast.error("Your production login has expired - pair again below.");
       }
       loadStatus();
+      loadConflicts();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Sync failed.");
     } finally {
@@ -173,6 +209,14 @@ export default function DesktopSyncSettingsPage() {
                   Last synced:{" "}
                   {status.last_synced_at ? new Date(status.last_synced_at).toLocaleString() : "never yet"}
                 </span>
+                {!!status.pending_push_count && (
+                  <Badge variant="outline">{status.pending_push_count} waiting to push</Badge>
+                )}
+                {!!status.failed_push_count && (
+                  <Badge variant="outline" className="text-warning border-warning">
+                    {status.failed_push_count} sync conflict{status.failed_push_count === 1 ? "" : "s"}
+                  </Badge>
+                )}
               </div>
             )}
 
@@ -211,13 +255,54 @@ export default function DesktopSyncSettingsPage() {
             )}
 
             <p className="text-xs text-muted-foreground border-t pt-3">
-              Changes made here on the desktop app stay on this computer until push-back sync ships - they
-              won&apos;t appear on the web dashboard or other devices yet. This page only pulls the latest
-              data down from production.
+              New customers, POS sales, and vendor bills created here sync back to production automatically
+              once this computer is online (Sync Now, or every few minutes in the background). Edits to
+              existing records still stay on this device only for now.
             </p>
           </CardContent>
         </Card>
       </motion.div>
+
+      {conflicts.length > 0 && (
+        <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <AlertTriangle className="size-4 text-warning" /> Sync Conflicts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Production rejected these when this device tried to sync them - review each one, fix it on
+                production directly if needed, then discard it here. Discarding only removes it from this
+                list; it does not retry the write.
+              </p>
+              <div className="flex flex-col gap-2">
+                {conflicts.map((c) => (
+                  <div key={c.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-medium">{c.summary}</span>
+                      <span className="text-xs text-muted-foreground break-words">{c.error_message}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(c.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => discardConflict(c.id)}
+                      disabled={discardingId === c.id}
+                      className="shrink-0"
+                    >
+                      <X className="size-3.5" /> Discard
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
         <Card>
