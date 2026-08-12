@@ -87,7 +87,18 @@ const MODULES: NavModule[] = [
       { href: "/dashboard/accounting/expenses", label: "Expenses" },
     ],
   },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: Settings,
+    // NEXT_PUBLIC_IS_DESKTOP is inlined at build time (frontend/package.json's
+    // build:desktop script) - this branch only exists in the desktop app's bundle,
+    // the regular web build never even ships the "Desktop Sync" link.
+    children:
+      process.env.NEXT_PUBLIC_IS_DESKTOP === "true"
+        ? [{ href: "/dashboard/settings/desktop-sync", label: "Desktop Sync" }]
+        : undefined,
+  },
   { href: "/dashboard/recycle-bin", label: "Recycle Bin", icon: Trash2, adminOnly: true },
 ];
 
