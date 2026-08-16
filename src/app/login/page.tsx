@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LogoLoader } from "@/components/logo-loader";
 import { fadeInUp } from "@/lib/motion";
 
 const DEFAULT_PRODUCTION_URL = "https://erp-system-seven-eosin.vercel.app";
@@ -40,14 +41,17 @@ export default function LoginPage() {
     if (process.env.NEXT_PUBLIC_IS_DESKTOP !== "true") return;
     setIsDesktop(true);
     let cancelled = false;
-    // A few retries with a short delay, not just one attempt - the splash screen
-    // already waits for the backend's TCP port before showing this page at all, so a
-    // genuine failure here is rare, but worth a couple retries before concluding
-    // anything. Falling straight through to the normal login form on the first
-    // failure (as this used to) is actively misleading: that form can never work
-    // against a fresh/empty local database, and shows zero indication anything's
-    // actually wrong - a shop owner would just see "wrong password" forever with no
-    // way to tell the real problem is "the app can't talk to itself."
+    // Retry budget matches the Rust splash screen's own BACKEND_READY_TIMEOUT (90s) -
+    // the splash's TCP-level check accepting a connection doesn't guarantee the
+    // backend can serve a real HTTP response yet (confirmed empirically: a real
+    // launch reached "port is listening" only ~60-90s in, well past a short retry
+    // window), so giving up any sooner than the splash itself would just relocate the
+    // exact same premature-failure bug one layer up instead of fixing it. Falling
+    // straight through to the normal login form on the first failure (the original
+    // bug here) is actively misleading either way: that form can never work against a
+    // fresh/empty local database, and shows zero indication anything's actually wrong
+    // - a shop owner would just see "wrong password" forever with no way to tell the
+    // real problem is "the app can't talk to itself yet."
     async function checkSetupStatus(attemptsLeft: number) {
       try {
         const data = await api<{ needs_setup: boolean }>("/api/core/desktop-setup-status/", { auth: false });
@@ -55,13 +59,13 @@ export default function LoginPage() {
       } catch {
         if (cancelled) return;
         if (attemptsLeft > 0) {
-          setTimeout(() => checkSetupStatus(attemptsLeft - 1), 1500);
+          setTimeout(() => checkSetupStatus(attemptsLeft - 1), 2000);
         } else {
           setBackendUnreachable(true);
         }
       }
     }
-    checkSetupStatus(5);
+    checkSetupStatus(45);
     return () => {
       cancelled = true;
     };
@@ -156,10 +160,14 @@ export default function LoginPage() {
   }
 
   if (isDesktop && needsSetup === null) {
-    // Still checking (or retrying) - deliberately blank rather than showing the
-    // normal login form for a moment and then yanking it away for the setup screen,
-    // which would be a confusing flash on a genuinely fresh install.
-    return <div className="flex flex-1 items-center justify-center bg-muted/40 p-4" />;
+    // Still checking (or retrying, up to ~90s) - a branded loader rather than either a
+    // blank screen (looks frozen) or the normal login form for a moment and then
+    // yanking it away for the setup screen (a confusing flash on a fresh install).
+    return (
+      <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
+        <LogoLoader label="Starting Mobile Corner ERP..." />
+      </div>
+    );
   }
 
   if (isDesktop && needsSetup) {
