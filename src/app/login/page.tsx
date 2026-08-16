@@ -27,6 +27,7 @@ export default function LoginPage() {
   // docstrings for why pairing itself is reachable without a local login here.
   const [isDesktop, setIsDesktop] = useState(false);
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  const [backendUnreachable, setBackendUnreachable] = useState(false);
   const [setupProductionUrl, setSetupProductionUrl] = useState(DEFAULT_PRODUCTION_URL);
   const [setupEmail, setSetupEmail] = useState("");
   const [setupPassword, setSetupPassword] = useState("");
@@ -38,9 +39,32 @@ export default function LoginPage() {
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_IS_DESKTOP !== "true") return;
     setIsDesktop(true);
-    api<{ needs_setup: boolean }>("/api/core/desktop-setup-status/", { auth: false })
-      .then((data) => setNeedsSetup(data.needs_setup))
-      .catch(() => setNeedsSetup(false)); // fail open to the normal login form
+    let cancelled = false;
+    // A few retries with a short delay, not just one attempt - the splash screen
+    // already waits for the backend's TCP port before showing this page at all, so a
+    // genuine failure here is rare, but worth a couple retries before concluding
+    // anything. Falling straight through to the normal login form on the first
+    // failure (as this used to) is actively misleading: that form can never work
+    // against a fresh/empty local database, and shows zero indication anything's
+    // actually wrong - a shop owner would just see "wrong password" forever with no
+    // way to tell the real problem is "the app can't talk to itself."
+    async function checkSetupStatus(attemptsLeft: number) {
+      try {
+        const data = await api<{ needs_setup: boolean }>("/api/core/desktop-setup-status/", { auth: false });
+        if (!cancelled) setNeedsSetup(data.needs_setup);
+      } catch {
+        if (cancelled) return;
+        if (attemptsLeft > 0) {
+          setTimeout(() => checkSetupStatus(attemptsLeft - 1), 1500);
+        } else {
+          setBackendUnreachable(true);
+        }
+      }
+    }
+    checkSetupStatus(5);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -104,6 +128,38 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isDesktop && backendUnreachable) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
+        <motion.div initial="hidden" animate="visible" variants={fadeInUp} className="w-full max-w-sm">
+          <Card className="w-full">
+            <CardHeader className="items-center text-center">
+              <CardTitle>Can&apos;t Reach the Local App Engine</CardTitle>
+              <CardDescription>
+                This computer&apos;s local backend isn&apos;t responding. Try closing Mobile
+                Corner ERP completely and reopening it. If this keeps happening, your antivirus
+                or firewall may be blocking the app from talking to itself on 127.0.0.1:8010 -
+                add an exception for Mobile Corner ERP and try again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => window.location.reload()}>
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (isDesktop && needsSetup === null) {
+    // Still checking (or retrying) - deliberately blank rather than showing the
+    // normal login form for a moment and then yanking it away for the setup screen,
+    // which would be a confusing flash on a genuinely fresh install.
+    return <div className="flex flex-1 items-center justify-center bg-muted/40 p-4" />;
   }
 
   if (isDesktop && needsSetup) {
