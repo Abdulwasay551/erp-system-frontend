@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Search } from "lucide-react";
-import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import {
   Table,
   TableBody,
@@ -438,31 +437,10 @@ export default function ProductsPage() {
                           <span className="text-muted-foreground">
                             {unit.status !== "available" ? `(${unit.status}) ` : ""}
                           </span>
-                          <TrackingCodeEditor
-                            id={unit.id}
-                            code={unit.imei_number || unit.serial_number || unit.barcode}
-                            status={unit.status}
-                            trackingMethod={detailData.tracking_method}
-                            onSaved={(newCode) =>
-                              setDetailData((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      tracking_units: prev.tracking_units.map((u) =>
-                                        u.id === unit.id
-                                          ? {
-                                              ...u,
-                                              imei_number: detailData.tracking_method === "imei" ? newCode : u.imei_number,
-                                              serial_number: detailData.tracking_method === "serial" ? newCode : u.serial_number,
-                                              barcode: detailData.tracking_method === "barcode" ? newCode : u.barcode,
-                                            }
-                                          : u
-                                      ),
-                                    }
-                                  : prev
-                              )
-                            }
-                          />
+                          {/* Read-only here - editing a unit's code is only offered on the Vendor
+                              Bill/receiving detail view, where it was actually just received, not
+                              from this general catalog browsing view. */}
+                          <span>{unit.imei_number || unit.serial_number || unit.barcode || "—"}</span>
                         </div>
                       ))}
                     </div>
