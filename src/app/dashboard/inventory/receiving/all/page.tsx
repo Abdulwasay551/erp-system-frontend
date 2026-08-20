@@ -344,7 +344,7 @@ export default function AllBillsPage() {
                             </Button>
                           }
                         />
-                        <DialogContent className="max-w-2xl">
+                        <DialogContent className="max-w-3xl">
                           <DialogHeader>
                             <DialogTitle>Edit Bill - {bill.bill_number}</DialogTitle>
                           </DialogHeader>
@@ -481,7 +481,7 @@ export default function AllBillsPage() {
       </motion.div>
 
       <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bill {detailFor?.bill_number}</DialogTitle>
           </DialogHeader>

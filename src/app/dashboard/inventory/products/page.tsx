@@ -64,16 +64,6 @@ interface Category {
   name: string;
 }
 
-interface VendorStockRow {
-  supplier_id: number | null;
-  supplier_name: string | null;
-  brand: string;
-  model: string;
-  variant_color: string | null;
-  variant_size: string | null;
-  available_count: number;
-}
-
 const TRACKING_METHODS = [
   { value: "none", label: "None (quantity-based)", hint: "Accessories, cases, chargers - tracked by count, optionally by barcode." },
   { value: "serial", label: "Serial Number", hint: "Phones/devices without a SIM slot." },
@@ -90,7 +80,6 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("name");
   const [query, setQuery] = useState("");
-  const [vendorStock, setVendorStock] = useState<VendorStockRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -136,9 +125,6 @@ export default function ProductsPage() {
   useEffect(loadProducts, [page, ordering]);
 
   useEffect(() => {
-    api<VendorStockRow[]>("/api/products/tracking/stock-by-vendor/")
-      .then(setVendorStock)
-      .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load vendor stock."));
     api<Category[] | { results: Category[] }>("/api/products/categories/")
       .then((data) => setCategories(Array.isArray(data) ? data : data.results))
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load categories."));
@@ -199,7 +185,7 @@ export default function ProductsPage() {
           }}
         >
           <DialogTrigger render={<Button>Add Product</Button>} />
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-xl">
             <DialogHeader>
               <DialogTitle>Add Product</DialogTitle>
             </DialogHeader>
@@ -363,50 +349,8 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Stock by Vendor (tracked units)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Brand</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead>Variant</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vendorStock.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <Search className="size-5 opacity-50" />
-                      <span>No tracked stock yet.</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-              {vendorStock.map((row, i) => (
-                <TableRow key={i}>
-                  <TableCell>{row.brand || "-"}</TableCell>
-                  <TableCell>{row.model}</TableCell>
-                  <TableCell>
-                    {[row.variant_color, row.variant_size].filter(Boolean).join(" / ") || "-"}
-                  </TableCell>
-                  <TableCell>{row.supplier_name ?? "-"}</TableCell>
-                  <TableCell className="text-right">{row.available_count}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
       <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{detailFor?.name}</DialogTitle>
           </DialogHeader>

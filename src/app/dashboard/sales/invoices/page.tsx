@@ -546,7 +546,7 @@ export default function InvoicesPage() {
                           </Button>
                         }
                       />
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-3xl">
                         <DialogHeader>
                           <DialogTitle>Edit Invoice - {inv.invoice_number}</DialogTitle>
                         </DialogHeader>
@@ -766,7 +766,7 @@ export default function InvoicesPage() {
                           </Button>
                         }
                       />
-                      <DialogContent className="max-w-lg">
+                      <DialogContent className="max-w-xl">
                         <DialogHeader>
                           <DialogTitle>Process Return - {inv.invoice_number}</DialogTitle>
                         </DialogHeader>
@@ -860,7 +860,7 @@ export default function InvoicesPage() {
       </motion.div>
 
       <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invoice {detailFor?.invoice_number}</DialogTitle>
           </DialogHeader>
