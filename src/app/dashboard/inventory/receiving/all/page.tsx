@@ -23,6 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
+import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import {
   Table,
   TableBody,
@@ -47,18 +48,28 @@ interface Bill {
   paid_amount: string;
 }
 
+interface TrackingUnitSummary {
+  id: number;
+  code: string | null;
+  status: string;
+}
+
 interface BillItemDetail {
   id: number;
   product: number;
   product_name: string;
+  product_tracking_method: string;
   quantity: string;
   unit_price: string;
+  line_total: string;
   discounts: DiscountEntry[];
   received_quantity: string;
+  tracking_units: TrackingUnitSummary[];
 }
 
 interface BillDetail extends Bill {
   discount_amount: string;
+  supplier_invoice_number: string;
   items: BillItemDetail[];
 }
 
@@ -102,6 +113,25 @@ export default function AllBillsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [editProductQuery, setEditProductQuery] = useState("");
   const [editProductResults, setEditProductResults] = useState<ProductResult[]>([]);
+
+  const [detailFor, setDetailFor] = useState<Bill | null>(null);
+  const [detailData, setDetailData] = useState<BillDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  async function openDetail(bill: Bill) {
+    setDetailFor(bill);
+    setDetailData(null);
+    setLoadingDetail(true);
+    try {
+      const full = await api<BillDetail>(`/api/purchase/bills/${bill.id}/`);
+      setDetailData(full);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load bill detail.");
+      setDetailFor(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   function load() {
     setError(null);
@@ -274,7 +304,8 @@ export default function AllBillsPage() {
                   ref={(el) => {
                     rowRefs.current[bill.id] = el;
                   }}
-                  className={highlightId && Number(highlightId) === bill.id ? "bg-primary/10 transition-colors" : undefined}
+                  className={`cursor-pointer ${highlightId && Number(highlightId) === bill.id ? "bg-primary/10 transition-colors" : ""}`}
+                  onClick={() => openDetail(bill)}
                 >
                   <TableCell className="font-medium">{bill.bill_number}</TableCell>
                   <TableCell>{bill.supplier_name}</TableCell>
@@ -295,7 +326,7 @@ export default function AllBillsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">Rs. {bill.total_amount}</TableCell>
-                  <TableCell className="flex items-center justify-end gap-2">
+                  <TableCell className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="outline"
                       size="sm"
@@ -448,6 +479,86 @@ export default function AllBillsPage() {
         </CardContent>
       </Card>
       </motion.div>
+
+      <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bill {detailFor?.bill_number}</DialogTitle>
+          </DialogHeader>
+          {loadingDetail || !detailData ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading...
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <span>Supplier: <span className="text-foreground">{detailData.supplier_name}</span></span>
+                <span>Date: <span className="text-foreground">{detailData.bill_date}</span></span>
+                <span>Status: <StatusBadge status={detailData.status} /></span>
+                <span>
+                  Goods: {detailData.goods_received ? (
+                    <Badge variant="outline" className="bg-success-container text-success border-transparent">Received</Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-warning-container text-warning border-transparent">Pending</Badge>
+                  )}
+                </span>
+                {detailData.supplier_invoice_number && (
+                  <span>Supplier Invoice #: <span className="text-foreground">{detailData.supplier_invoice_number}</span></span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                {detailData.items.map((item) => (
+                  <div key={item.id} className="rounded-md border p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{item.product_name}</span>
+                      <span className="text-muted-foreground">
+                        {item.quantity} &times; Rs. {item.unit_price} = Rs. {item.line_total}
+                      </span>
+                    </div>
+                    {item.tracking_units.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 border-t pt-1.5">
+                        {item.tracking_units.map((unit) => (
+                          <div key={unit.id} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">{unit.status === "available" ? "" : `(${unit.status}) `}</span>
+                            <TrackingCodeEditor
+                              id={unit.id}
+                              code={unit.code}
+                              status={unit.status}
+                              trackingMethod={item.product_tracking_method}
+                              onSaved={(newCode) =>
+                                setDetailData((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        items: prev.items.map((it) =>
+                                          it.id === item.id
+                                            ? {
+                                                ...it,
+                                                tracking_units: it.tracking_units.map((u) =>
+                                                  u.id === unit.id ? { ...u, code: newCode } : u
+                                                ),
+                                              }
+                                            : it
+                                        ),
+                                      }
+                                    : prev
+                                )
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-1 border-t pt-2 text-right">
+                <span className="font-medium">Total: Rs. {detailData.total_amount}</span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

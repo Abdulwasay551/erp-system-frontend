@@ -18,6 +18,7 @@ import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
 import { FileText, Receipt, Undo2, Loader2, Download, Pencil, Percent, Plus, Trash2 } from "lucide-react";
 import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
+import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import {
   Table,
   TableBody,
@@ -104,10 +105,13 @@ interface InvoiceItemDetail {
   id: number;
   product: number;
   product_name: string;
+  product_tracking_method: string;
   tracking_unit: number | null;
   tracking_identifier: string | null;
+  tracking_status: string | null;
   quantity: string;
   unit_price: string;
+  line_total: string;
   discounts: DiscountEntry[];
 }
 
@@ -173,6 +177,25 @@ export default function InvoicesPage() {
   const [loadingEditItems, setLoadingEditItems] = useState(false);
   const [editProductQuery, setEditProductQuery] = useState("");
   const [editProductResults, setEditProductResults] = useState<ProductResult[]>([]);
+
+  const [detailFor, setDetailFor] = useState<Invoice | null>(null);
+  const [detailData, setDetailData] = useState<InvoiceDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  async function openDetail(inv: Invoice) {
+    setDetailFor(inv);
+    setDetailData(null);
+    setLoadingDetail(true);
+    try {
+      const full = await api<InvoiceDetail>(`/api/sales/invoices/${inv.id}/`);
+      setDetailData(full);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load invoice detail.");
+      setDetailFor(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   function load() {
     const params = new URLSearchParams({ page: String(page), ordering });
@@ -480,7 +503,8 @@ export default function InvoicesPage() {
                   ref={(el) => {
                     rowRefs.current[inv.id] = el;
                   }}
-                  className={highlightId && Number(highlightId) === inv.id ? "bg-primary/10 transition-colors" : undefined}
+                  className={`cursor-pointer ${highlightId && Number(highlightId) === inv.id ? "bg-primary/10 transition-colors" : ""}`}
+                  onClick={() => openDetail(inv)}
                 >
                   <TableCell className="font-medium">{inv.invoice_number}</TableCell>
                   <TableCell>{inv.customer_name}</TableCell>
@@ -495,7 +519,7 @@ export default function InvoicesPage() {
                   <TableCell>
                     <StatusBadge status={inv.status} />
                   </TableCell>
-                  <TableCell className="flex items-center justify-end gap-2">
+                  <TableCell className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -834,6 +858,68 @@ export default function InvoicesPage() {
         </CardContent>
       </Card>
       </motion.div>
+
+      <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invoice {detailFor?.invoice_number}</DialogTitle>
+          </DialogHeader>
+          {loadingDetail || !detailData ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading...
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <span>Customer: <span className="text-foreground">{detailData.customer_name}</span></span>
+                <span>Date: <span className="text-foreground">{detailData.invoice_date}</span></span>
+                <span>Status: <StatusBadge status={detailData.status} /></span>
+                <span>Outstanding: <span className="text-foreground">Rs. {detailData.outstanding_amount}</span></span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {detailData.items.map((item) => (
+                  <div key={item.id} className="rounded-md border p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{item.product_name}</span>
+                      <span className="text-muted-foreground">
+                        {item.quantity} &times; Rs. {item.unit_price} = Rs. {item.line_total}
+                      </span>
+                    </div>
+                    {item.tracking_unit && (
+                      <div className="mt-1.5 flex items-center gap-1 border-t pt-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          {item.tracking_status && item.tracking_status !== "available" ? `(${item.tracking_status}) ` : ""}
+                        </span>
+                        <TrackingCodeEditor
+                          id={item.tracking_unit}
+                          code={item.tracking_identifier}
+                          status={item.tracking_status ?? "sold"}
+                          trackingMethod={item.product_tracking_method}
+                          onSaved={(newCode) =>
+                            setDetailData((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    items: prev.items.map((it) =>
+                                      it.id === item.id ? { ...it, tracking_identifier: newCode } : it
+                                    ),
+                                  }
+                                : prev
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-1 border-t pt-2 text-right">
+                <span className="font-medium">Total: Rs. {detailData.total}</span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, Search } from "lucide-react";
+import { Loader2, Package, Search } from "lucide-react";
+import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import {
   Table,
   TableBody,
@@ -42,6 +43,21 @@ interface Product {
   tracking_units_count: number;
   flags: string[];
   is_active: boolean;
+}
+
+interface ProductTrackingUnit {
+  id: number;
+  imei_number: string | null;
+  serial_number: string | null;
+  barcode: string | null;
+  status: string;
+}
+
+interface ProductDetail extends Product {
+  brand: string;
+  barcode: string | null;
+  description: string;
+  tracking_units: ProductTrackingUnit[];
 }
 
 interface Category {
@@ -87,6 +103,25 @@ export default function ProductsPage() {
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [detailFor, setDetailFor] = useState<Product | null>(null);
+  const [detailData, setDetailData] = useState<ProductDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  async function openDetail(p: Product) {
+    setDetailFor(p);
+    setDetailData(null);
+    setLoadingDetail(true);
+    try {
+      const full = await api<ProductDetail>(`/api/products/products/${p.id}/`);
+      setDetailData(full);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load product detail.");
+      setDetailFor(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   function loadProducts() {
     const params = new URLSearchParams({ page: String(page), ordering });
@@ -287,7 +322,7 @@ export default function ProductsPage() {
                 </TableRow>
               )}
               {products.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="cursor-pointer" onClick={() => openDetail(p)}>
                   <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.category_name ?? "-"}</TableCell>
@@ -312,7 +347,7 @@ export default function ProductsPage() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     {admin && (
                       <DeleteButton
                         label={`Product ${p.name}`}
@@ -370,6 +405,74 @@ export default function ProductsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={detailFor !== null} onOpenChange={(open) => !open && setDetailFor(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detailFor?.name}</DialogTitle>
+          </DialogHeader>
+          {loadingDetail || !detailData ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading...
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <span>SKU: <span className="font-mono text-foreground">{detailData.sku}</span></span>
+                <span>Brand: <span className="text-foreground">{detailData.brand || "-"}</span></span>
+                <span>Barcode: <span className="text-foreground">{detailData.barcode || "-"}</span></span>
+                <span>Category: <span className="text-foreground">{detailData.category_name || "-"}</span></span>
+                <span>Cost: <span className="text-foreground">Rs. {detailData.cost_price}</span></span>
+                <span>Selling: <span className="text-foreground">Rs. {detailData.selling_price}</span></span>
+              </div>
+              {detailData.description && <p className="text-muted-foreground">{detailData.description}</p>}
+              {detailData.tracking_method !== "none" && (
+                <div className="flex flex-col gap-1">
+                  <Label>Tracking Units ({detailData.tracking_units.length})</Label>
+                  {detailData.tracking_units.length === 0 ? (
+                    <p className="text-muted-foreground">No units received yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1 rounded-md border p-2">
+                      {detailData.tracking_units.map((unit) => (
+                        <div key={unit.id} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {unit.status !== "available" ? `(${unit.status}) ` : ""}
+                          </span>
+                          <TrackingCodeEditor
+                            id={unit.id}
+                            code={unit.imei_number || unit.serial_number || unit.barcode}
+                            status={unit.status}
+                            trackingMethod={detailData.tracking_method}
+                            onSaved={(newCode) =>
+                              setDetailData((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tracking_units: prev.tracking_units.map((u) =>
+                                        u.id === unit.id
+                                          ? {
+                                              ...u,
+                                              imei_number: detailData.tracking_method === "imei" ? newCode : u.imei_number,
+                                              serial_number: detailData.tracking_method === "serial" ? newCode : u.serial_number,
+                                              barcode: detailData.tracking_method === "barcode" ? newCode : u.barcode,
+                                            }
+                                          : u
+                                      ),
+                                    }
+                                  : prev
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -435,7 +435,7 @@ export default function SuppliersPage() {
                 </TableRow>
               )}
               {suppliers.map((s) => (
-                <TableRow key={s.id}>
+                <TableRow key={s.id} className="cursor-pointer" onClick={() => viewLedger(s)}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="capitalize">
@@ -449,7 +449,7 @@ export default function SuppliersPage() {
                       Rs. {s.outstanding_balance}
                     </span>
                   </TableCell>
-                  <TableCell className="flex gap-2 justify-end">
+                  <TableCell className="flex gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
                     <Button variant="outline" size="sm" onClick={() => openEditSupplier(s)}>
                       <Pencil className="size-3.5" />
                     </Button>

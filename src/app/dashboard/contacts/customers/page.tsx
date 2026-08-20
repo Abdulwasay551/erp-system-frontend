@@ -384,7 +384,7 @@ export default function CustomersPage() {
                 </TableRow>
               )}
               {customers.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} className="cursor-pointer" onClick={() => viewLedger(c)}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{c.phone || "-"}</TableCell>
                   <TableCell>{c.cnic || "-"}</TableCell>
@@ -393,7 +393,7 @@ export default function CustomersPage() {
                       Rs. {c.outstanding_balance}
                     </span>
                   </TableCell>
-                  <TableCell className="flex gap-2 justify-end">
+                  <TableCell className="flex gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
                     <Button variant="outline" size="sm" onClick={() => openEditCustomer(c)}>
                       <Pencil className="size-3.5" />
                     </Button>
