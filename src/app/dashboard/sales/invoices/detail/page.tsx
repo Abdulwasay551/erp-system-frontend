@@ -10,7 +10,6 @@ import { isAdmin } from "@/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import { DiscountEntry } from "@/components/discount-editor";
 import { LoadingState, ErrorState } from "@/components/data-state";
 import {
@@ -161,22 +160,7 @@ export default function InvoiceDetailPage() {
                     <span className="text-muted-foreground">
                       {item.tracking_status && item.tracking_status !== "available" ? `(${item.tracking_status}) ` : ""}
                     </span>
-                    <TrackingCodeEditor
-                      id={item.tracking_unit}
-                      code={item.tracking_identifier}
-                      status={item.tracking_status ?? "sold"}
-                      trackingMethod={item.product_tracking_method}
-                      onSaved={(newCode) =>
-                        setData((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                items: prev.items.map((it) => (it.id === item.id ? { ...it, tracking_identifier: newCode } : it)),
-                              }
-                            : prev
-                        )
-                      }
-                    />
+                    <span>{item.tracking_identifier ?? <span className="text-muted-foreground">&mdash;</span>}</span>
                   </div>
                 )}
               </div>

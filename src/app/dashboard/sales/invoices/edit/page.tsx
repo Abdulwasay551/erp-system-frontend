@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
+import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import { LoadingState, ErrorState } from "@/components/data-state";
 import { ArrowLeft, Percent, Plus, Trash2 } from "lucide-react";
 
@@ -35,8 +36,10 @@ interface InvoiceDetail {
     id: number;
     product: number;
     product_name: string;
+    product_tracking_method: string;
     tracking_unit: number | null;
     tracking_identifier: string | null;
+    tracking_status: string | null;
     unit_price: string;
     quantity: string;
     discounts: DiscountEntry[];
@@ -47,8 +50,10 @@ interface EditableItem {
   id?: number;
   product_id: number;
   product_name: string;
+  product_tracking_method: string;
   tracking_unit_id: number | null;
   tracking_identifier: string | null;
+  tracking_status: string | null;
   unit_price: string;
   quantity: string;
   discounts: DiscountEntry[];
@@ -94,8 +99,10 @@ export default function EditInvoicePage() {
             id: it.id,
             product_id: it.product,
             product_name: it.product_name,
+            product_tracking_method: it.product_tracking_method,
             tracking_unit_id: it.tracking_unit,
             tracking_identifier: it.tracking_identifier,
+            tracking_status: it.tracking_status,
             unit_price: it.unit_price,
             quantity: it.quantity,
             discounts: it.discounts ?? [],
@@ -136,8 +143,10 @@ export default function EditInvoicePage() {
       {
         product_id: p.id,
         product_name: p.name,
+        product_tracking_method: p.tracking_method,
         tracking_unit_id: null,
         tracking_identifier: null,
+        tracking_status: null,
         unit_price: p.selling_price,
         quantity: "1",
         discounts: [],
@@ -219,10 +228,20 @@ export default function EditInvoicePage() {
               const activeDiscounts = it.discounts.filter((d) => Number(d.value) > 0);
               return (
                 <div key={it.id ?? `new-${i}`} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                  <span className="flex-1">
+                  <span className="flex flex-1 items-center gap-1">
                     {it.product_name}
-                    {it.tracking_identifier && (
-                      <span className="ml-1 font-mono text-xs text-muted-foreground">({it.tracking_identifier})</span>
+                    {it.tracking_unit_id && (
+                      <span className="ml-1 font-mono text-xs text-muted-foreground">
+                        (
+                        <TrackingCodeEditor
+                          id={it.tracking_unit_id}
+                          code={it.tracking_identifier}
+                          status={it.tracking_status ?? "sold"}
+                          trackingMethod={it.product_tracking_method}
+                          onSaved={(newCode) => updateItem(i, { tracking_identifier: newCode })}
+                        />
+                        )
+                      </span>
                     )}
                   </span>
                   <Input

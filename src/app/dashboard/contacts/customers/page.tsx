@@ -332,7 +332,7 @@ export default function CustomersPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/dashboard/contacts/customers/detail?id=${c.id}&tab=payments`)}
+                      onClick={() => router.push(`/dashboard/contacts/customers/detail?id=${c.id}&tab=ledger`)}
                     >
                       Ledger
                     </Button>

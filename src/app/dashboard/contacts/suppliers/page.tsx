@@ -388,7 +388,7 @@ export default function SuppliersPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/dashboard/contacts/suppliers/detail?id=${s.id}&tab=payments`)}
+                      onClick={() => router.push(`/dashboard/contacts/suppliers/detail?id=${s.id}&tab=ledger`)}
                     >
                       Ledger
                     </Button>

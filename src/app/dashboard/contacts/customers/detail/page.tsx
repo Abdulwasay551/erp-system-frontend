@@ -106,6 +106,11 @@ export default function CustomerDetailPage() {
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
+  const [payments, setPayments] = useState<ListPage<LedgerEntry> | null>(null);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentsDateFrom, setPaymentsDateFrom] = useState("");
+  const [paymentsDateTo, setPaymentsDateTo] = useState("");
+
   const [analytics, setAnalytics] = useState<AnalyticsDay[] | null>(null);
 
   function setTab(next: string) {
@@ -151,7 +156,23 @@ export default function CustomerDetailPage() {
       .catch(() => toast.error("Failed to load ledger."));
   }
   useEffect(() => {
-    if (tab === "payments") loadLedger(1);
+    if (tab === "ledger") loadLedger(1);
+  }, [id, tab]);
+
+  function loadPayments(page: number) {
+    if (!id) return;
+    const params = new URLSearchParams({ page: String(page), page_size: "20", reference_type: "payment" });
+    if (paymentsDateFrom) params.set("date_from", paymentsDateFrom);
+    if (paymentsDateTo) params.set("date_to", paymentsDateTo);
+    api<ListPage<LedgerEntry>>(`/api/crm/customers/${id}/ledger/?${params}`)
+      .then((data) => {
+        setPayments(data);
+        setPaymentsPage(page);
+      })
+      .catch(() => toast.error("Failed to load payments."));
+  }
+  useEffect(() => {
+    if (tab === "payments") loadPayments(1);
   }, [id, tab]);
 
   useEffect(() => {
@@ -210,6 +231,7 @@ export default function CustomerDetailPage() {
         <TabsList>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="ledger">Ledger</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -276,7 +298,7 @@ export default function CustomerDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="payments">
+        <TabsContent value="ledger">
           <Card>
             <CardContent className="flex flex-col gap-3 pt-6">
               <div className="flex flex-wrap items-end gap-2">
@@ -347,6 +369,68 @@ export default function CustomerDetailPage() {
                       <ChevronLeft className="size-3.5" />
                     </Button>
                     <Button size="sm" variant="outline" disabled={ledgerPage >= ledger.total_pages} onClick={() => loadLedger(ledgerPage + 1)}>
+                      <ChevronRight className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <Card>
+            <CardContent className="flex flex-col gap-3 pt-6">
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">From</Label>
+                  <Input type="date" value={paymentsDateFrom} onChange={(e) => setPaymentsDateFrom(e.target.value)} className="h-8 w-36" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">To</Label>
+                  <Input type="date" value={paymentsDateTo} onChange={(e) => setPaymentsDateTo(e.target.value)} className="h-8 w-36" />
+                </div>
+                <Button size="sm" variant="outline" onClick={() => loadPayments(1)}>
+                  Apply Filter
+                </Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Balance After</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payments?.results.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-20 text-center text-muted-foreground">
+                        No payments in this range.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {payments?.results.map((e) => (
+                    <TableRow key={e.id} className="bg-success-container/40">
+                      <TableCell>{e.transaction_date}</TableCell>
+                      <TableCell>{e.description}</TableCell>
+                      <TableCell className="text-right text-success">{money(e.credit_amount)}</TableCell>
+                      <TableCell className="text-right">{money(e.balance)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {payments && payments.total_pages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-muted-foreground">
+                    Page {payments.page} of {payments.total_pages} - {payments.count} payments
+                  </span>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" disabled={paymentsPage <= 1} onClick={() => loadPayments(paymentsPage - 1)}>
+                      <ChevronLeft className="size-3.5" />
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={paymentsPage >= payments.total_pages} onClick={() => loadPayments(paymentsPage + 1)}>
                       <ChevronRight className="size-3.5" />
                     </Button>
                   </div>

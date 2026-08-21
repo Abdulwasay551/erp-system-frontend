@@ -20,8 +20,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
+import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import { LoadingState, ErrorState } from "@/components/data-state";
 import { ArrowLeft, Percent, Plus, Trash2 } from "lucide-react";
+
+interface TrackingUnitSummary {
+  id: number;
+  code: string | null;
+  status: string;
+}
 
 interface BillDetail {
   id: number;
@@ -32,10 +39,12 @@ interface BillDetail {
     id: number;
     product: number;
     product_name: string;
+    product_tracking_method: string;
     unit_price: string;
     quantity: string;
     discounts: DiscountEntry[];
     received_quantity: string;
+    tracking_units: TrackingUnitSummary[];
   }[];
 }
 
@@ -43,10 +52,12 @@ interface EditableBillItem {
   id?: number;
   product_id: number;
   product_name: string;
+  product_tracking_method: string;
   unit_price: string;
   quantity: string;
   discounts: DiscountEntry[];
   received_quantity: number;
+  tracking_units: TrackingUnitSummary[];
 }
 
 interface ProductResult {
@@ -87,10 +98,12 @@ export default function EditBillPage() {
             id: it.id,
             product_id: it.product,
             product_name: it.product_name,
+            product_tracking_method: it.product_tracking_method,
             unit_price: it.unit_price,
             quantity: it.quantity,
             discounts: it.discounts ?? [],
             received_quantity: Number(it.received_quantity) || 0,
+            tracking_units: it.tracking_units ?? [],
           }))
         );
       })
@@ -124,10 +137,12 @@ export default function EditBillPage() {
       {
         product_id: p.id,
         product_name: p.name,
+        product_tracking_method: p.tracking_method,
         unit_price: p.cost_price ?? "0",
         quantity: "1",
         discounts: [],
         received_quantity: 0,
+        tracking_units: [],
       },
     ]);
     setProductQuery("");
@@ -190,55 +205,78 @@ export default function EditBillPage() {
               const activeDiscounts = it.discounts.filter((d) => Number(d.value) > 0);
               const locked = it.received_quantity > 0;
               return (
-                <div key={it.id ?? `new-${i}`} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                  <span className="flex-1">
-                    {it.product_name}
-                    {locked && (
-                      <span className="ml-1 text-xs text-muted-foreground">({it.received_quantity} already received)</span>
-                    )}
-                  </span>
-                  <Input
-                    className="w-24"
-                    placeholder="Price"
-                    value={it.unit_price}
-                    onChange={(e) => updateItem(i, { unit_price: e.target.value })}
-                    inputMode="decimal"
-                  />
-                  {locked ? (
-                    <span className="w-16 text-center text-muted-foreground">x{it.quantity}</span>
-                  ) : (
+                <div key={it.id ?? `new-${i}`} className="flex flex-col gap-1.5 rounded-md border p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1">
+                      {it.product_name}
+                      {locked && (
+                        <span className="ml-1 text-xs text-muted-foreground">({it.received_quantity} already received)</span>
+                      )}
+                    </span>
                     <Input
-                      className="w-16"
-                      value={it.quantity}
-                      onChange={(e) => updateItem(i, { quantity: e.target.value })}
+                      className="w-24"
+                      placeholder="Price"
+                      value={it.unit_price}
+                      onChange={(e) => updateItem(i, { unit_price: e.target.value })}
                       inputMode="decimal"
                     />
+                    {locked ? (
+                      <span className="w-16 text-center text-muted-foreground">x{it.quantity}</span>
+                    ) : (
+                      <Input
+                        className="w-16"
+                        value={it.quantity}
+                        onChange={(e) => updateItem(i, { quantity: e.target.value })}
+                        inputMode="decimal"
+                      />
+                    )}
+                    <Dialog>
+                      <DialogTrigger
+                        render={
+                          <Button variant="outline" size="sm">
+                            <Percent className="size-3.5" />
+                            {activeDiscounts.length > 0 ? activeDiscounts.length : ""}
+                          </Button>
+                        }
+                      />
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Discounts - {it.product_name}</DialogTitle>
+                        </DialogHeader>
+                        <DiscountEditor value={it.discounts} onChange={(d) => updateItem(i, { discounts: d })} />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={locked}
+                      title={locked ? "Can't remove - already received" : undefined}
+                      onClick={() => removeItem(i)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                  {it.tracking_units.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-1.5 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Units on this line:</span>
+                      {it.tracking_units.map((unit) => (
+                        <span key={unit.id} className="font-mono">
+                          <TrackingCodeEditor
+                            id={unit.id}
+                            code={unit.code}
+                            status={unit.status}
+                            trackingMethod={it.product_tracking_method}
+                            onSaved={(newCode) =>
+                              updateItem(i, {
+                                tracking_units: it.tracking_units.map((u) => (u.id === unit.id ? { ...u, code: newCode } : u)),
+                              })
+                            }
+                          />
+                          {unit.status !== "available" && <span className="ml-1 italic">({unit.status})</span>}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  <Dialog>
-                    <DialogTrigger
-                      render={
-                        <Button variant="outline" size="sm">
-                          <Percent className="size-3.5" />
-                          {activeDiscounts.length > 0 ? activeDiscounts.length : ""}
-                        </Button>
-                      }
-                    />
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Discounts - {it.product_name}</DialogTitle>
-                      </DialogHeader>
-                      <DiscountEditor value={it.discounts} onChange={(d) => updateItem(i, { discounts: d })} />
-                    </DialogContent>
-                  </Dialog>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={locked}
-                    title={locked ? "Can't remove - already received" : undefined}
-                    onClick={() => removeItem(i)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
                 </div>
               );
             })}

@@ -11,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { TrackingCodeEditor } from "@/components/tracking-code-editor";
 import { DiscountEntry } from "@/components/discount-editor";
 import { LoadingState, ErrorState } from "@/components/data-state";
 import { ArrowLeft, Download, Pencil, Undo2 } from "lucide-react";
@@ -170,31 +169,7 @@ export default function BillDetailPage() {
                     {item.tracking_units.map((unit) => (
                       <div key={unit.id} className="flex items-center gap-1 text-xs">
                         <span className="text-muted-foreground">{unit.status === "available" ? "" : `(${unit.status}) `}</span>
-                        <TrackingCodeEditor
-                          id={unit.id}
-                          code={unit.code}
-                          status={unit.status}
-                          trackingMethod={item.product_tracking_method}
-                          onSaved={(newCode) =>
-                            setData((prev) =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    items: prev.items.map((it) =>
-                                      it.id === item.id
-                                        ? {
-                                            ...it,
-                                            tracking_units: it.tracking_units.map((u) =>
-                                              u.id === unit.id ? { ...u, code: newCode } : u
-                                            ),
-                                          }
-                                        : it
-                                    ),
-                                  }
-                                : prev
-                            )
-                          }
-                        />
+                        <span>{unit.code ?? <span className="text-muted-foreground">&mdash;</span>}</span>
                       </div>
                     ))}
                   </div>
