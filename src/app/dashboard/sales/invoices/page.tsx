@@ -396,6 +396,14 @@ export default function InvoicesPage() {
     });
   }
 
+  function selectAllForReturn() {
+    setSelected(
+      Object.fromEntries(
+        returnableItems.map((item) => [item.invoice_item_id, { checked: true, quantity: item.returnable_quantity }])
+      )
+    );
+  }
+
   function setSelectedQuantity(invoiceItemId: number, quantity: string) {
     setSelected((prev) => ({ ...prev, [invoiceItemId]: { checked: true, quantity } }));
   }
@@ -781,6 +789,11 @@ export default function InvoicesPage() {
                             </p>
                           ) : (
                             <div className="flex flex-col gap-2">
+                              <div className="flex justify-end">
+                                <Button variant="outline" size="sm" onClick={selectAllForReturn}>
+                                  Select All (Reverse Whole Invoice)
+                                </Button>
+                              </div>
                               {returnableItems.map((item) => (
                                 <label
                                   key={item.invoice_item_id}
