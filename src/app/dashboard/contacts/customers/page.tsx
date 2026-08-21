@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { api, ApiError, openPdf, Paginated } from "@/lib/api";
+import { api, ApiError, Paginated } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { isAdmin } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { fadeInUp } from "@/lib/motion";
-import { Users, Receipt, Download, ChevronLeft, ChevronRight, Pencil, ArrowLeftRight } from "lucide-react";
+import { Users, Receipt, Pencil, ArrowLeftRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -49,25 +49,6 @@ interface Customer {
   outstanding_balance: string;
 }
 
-interface LedgerEntry {
-  id: number;
-  transaction_date: string;
-  reference_type: string;
-  reference_id: number;
-  description: string;
-  debit_amount: string;
-  credit_amount: string;
-  balance: string;
-}
-
-interface LedgerPage {
-  count: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-  results: LedgerEntry[];
-}
-
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank Transfer" },
@@ -82,18 +63,12 @@ const PAGE_SIZE = 25;
 export default function CustomersPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("name");
   const [search, setSearch] = useState("");
-  const [ledgerFor, setLedgerFor] = useState<Customer | null>(null);
-  const [ledger, setLedger] = useState<LedgerPage | null>(null);
-  const [ledgerDateFrom, setLedgerDateFrom] = useState("");
-  const [ledgerDateTo, setLedgerDateTo] = useState("");
-  const [ledgerPage, setLedgerPage] = useState(1);
-  const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [downloadingLedgerPdf, setDownloadingLedgerPdf] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -131,49 +106,6 @@ export default function CustomersPage() {
   }
 
   useEffect(loadCustomers, [page, ordering]);
-
-  function ledgerQuery(page: number) {
-    const params = new URLSearchParams({ page: String(page), page_size: "20" });
-    if (ledgerDateFrom) params.set("date_from", ledgerDateFrom);
-    if (ledgerDateTo) params.set("date_to", ledgerDateTo);
-    return params.toString();
-  }
-
-  async function loadLedgerPage(customer: Customer, page: number) {
-    setLedgerLoading(true);
-    try {
-      const data = await api<LedgerPage>(`/api/crm/customers/${customer.id}/ledger/?${ledgerQuery(page)}`);
-      setLedger(data);
-      setLedgerPage(page);
-    } catch {
-      toast.error("Failed to load ledger.");
-    } finally {
-      setLedgerLoading(false);
-    }
-  }
-
-  function viewLedger(customer: Customer) {
-    setLedgerFor(customer);
-    setLedgerDateFrom("");
-    setLedgerDateTo("");
-    setLedger(null);
-    loadLedgerPage(customer, 1);
-  }
-
-  async function downloadLedgerPdf() {
-    if (!ledgerFor) return;
-    setDownloadingLedgerPdf(true);
-    try {
-      const params = new URLSearchParams();
-      if (ledgerDateFrom) params.set("date_from", ledgerDateFrom);
-      if (ledgerDateTo) params.set("date_to", ledgerDateTo);
-      await openPdf(`/api/crm/customers/${ledgerFor.id}/ledger/pdf/?${params.toString()}`);
-    } catch {
-      toast.error("Failed to generate ledger PDF.");
-    } finally {
-      setDownloadingLedgerPdf(false);
-    }
-  }
 
   function openAdd() {
     setEditingId(null);
@@ -384,7 +316,7 @@ export default function CustomersPage() {
                 </TableRow>
               )}
               {customers.map((c) => (
-                <TableRow key={c.id} className="cursor-pointer" onClick={() => viewLedger(c)}>
+                <TableRow key={c.id} className="cursor-pointer" onClick={() => router.push(`/dashboard/contacts/customers/detail?id=${c.id}`)}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{c.phone || "-"}</TableCell>
                   <TableCell>{c.cnic || "-"}</TableCell>
@@ -397,142 +329,13 @@ export default function CustomersPage() {
                     <Button variant="outline" size="sm" onClick={() => openEditCustomer(c)}>
                       <Pencil className="size-3.5" />
                     </Button>
-                    <Dialog
-                      open={ledgerFor?.id === c.id}
-                      onOpenChange={(open) => !open && setLedgerFor(null)}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/contacts/customers/detail?id=${c.id}&tab=payments`)}
                     >
-                      <DialogTrigger
-                        render={
-                          <Button variant="outline" size="sm" onClick={() => viewLedger(c)}>
-                            Ledger
-                          </Button>
-                        }
-                      />
-                      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>{c.name} - Ledger</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex flex-wrap items-end gap-2">
-                          <div className="flex flex-col gap-1">
-                            <Label className="text-xs">From</Label>
-                            <Input
-                              type="date"
-                              value={ledgerDateFrom}
-                              onChange={(e) => setLedgerDateFrom(e.target.value)}
-                              className="h-8 w-36"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <Label className="text-xs">To</Label>
-                            <Input
-                              type="date"
-                              value={ledgerDateTo}
-                              onChange={(e) => setLedgerDateTo(e.target.value)}
-                              className="h-8 w-36"
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => ledgerFor && loadLedgerPage(ledgerFor, 1)}
-                            disabled={ledgerLoading}
-                          >
-                            Apply Filter
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="ml-auto"
-                            onClick={downloadLedgerPdf}
-                            disabled={downloadingLedgerPdf}
-                          >
-                            <Download className="size-3.5" /> {downloadingLedgerPdf ? "Generating..." : "Download PDF"}
-                          </Button>
-                        </div>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Ref</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Description</TableHead>
-                              <TableHead className="text-right">Debit</TableHead>
-                              <TableHead className="text-right">Credit</TableHead>
-                              <TableHead className="text-right">Balance</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {ledger?.results.length === 0 && (
-                              <TableRow>
-                                <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-                                  No ledger entries in this range.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                            {ledger?.results.map((e) => (
-                              <TableRow
-                                key={e.id}
-                                className={
-                                  Number(e.debit_amount) > 0
-                                    ? "bg-danger-container/40"
-                                    : Number(e.credit_amount) > 0
-                                      ? "bg-success-container/40"
-                                      : undefined
-                                }
-                              >
-                                <TableCell>
-                                  {e.reference_type === "invoice" ? (
-                                    <Link
-                                      href={`/dashboard/sales/invoices?highlight=${e.reference_id}`}
-                                      className="text-primary underline underline-offset-2 text-xs font-medium"
-                                    >
-                                      Invoice
-                                    </Link>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground capitalize">
-                                      {e.reference_type.replace("_", " ")}
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell>{e.transaction_date}</TableCell>
-                                <TableCell>{e.description}</TableCell>
-                                <TableCell className="text-right text-danger">
-                                  {Number(e.debit_amount) > 0 ? `Rs. ${e.debit_amount}` : "-"}
-                                </TableCell>
-                                <TableCell className="text-right text-success">
-                                  {Number(e.credit_amount) > 0 ? `Rs. ${e.credit_amount}` : "-"}
-                                </TableCell>
-                                <TableCell className="text-right">Rs. {e.balance}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                        {ledger && ledger.total_pages > 1 && (
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-xs text-muted-foreground">
-                              Page {ledger.page} of {ledger.total_pages} - {ledger.count} entries
-                            </span>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={ledgerLoading || ledgerPage <= 1}
-                                onClick={() => ledgerFor && loadLedgerPage(ledgerFor, ledgerPage - 1)}
-                              >
-                                <ChevronLeft className="size-3.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={ledgerLoading || ledgerPage >= ledger.total_pages}
-                                onClick={() => ledgerFor && loadLedgerPage(ledgerFor, ledgerPage + 1)}
-                              >
-                                <ChevronRight className="size-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
+                      Ledger
+                    </Button>
 
                     <Dialog open={payFor?.id === c.id} onOpenChange={(open) => !open && setPayFor(null)}>
                         <DialogTrigger
