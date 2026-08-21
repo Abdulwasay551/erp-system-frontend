@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package } from "lucide-react";
+import { Package, Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -69,7 +69,9 @@ export default function ProductsPage() {
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -99,6 +101,7 @@ export default function ProductsPage() {
   }, []);
 
   function resetForm() {
+    setEditingId(null);
     setName("");
     setBrand("");
     setBarcode("");
@@ -108,31 +111,64 @@ export default function ProductsPage() {
     setSellingPrice("");
   }
 
-  async function addProduct() {
+  function openAdd() {
+    resetForm();
+    setFormOpen(true);
+  }
+
+  async function openEdit(p: Product) {
+    setEditingId(p.id);
+    setName(p.name);
+    setTrackingMethod(p.tracking_method);
+    setCostPrice(p.cost_price);
+    setSellingPrice(p.selling_price);
+    setCategoryId(null);
+    setBrand("");
+    setBarcode("");
+    setFormOpen(true);
+    setLoadingEdit(true);
+    try {
+      const full = await api<{ brand: string; barcode: string | null; category: number | null }>(
+        `/api/products/products/${p.id}/`
+      );
+      setBrand(full.brand ?? "");
+      setBarcode(full.barcode ?? "");
+      setCategoryId(full.category ? String(full.category) : null);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load product details.");
+    } finally {
+      setLoadingEdit(false);
+    }
+  }
+
+  async function saveProduct() {
     if (!name.trim()) {
       toast.error("Name is required.");
       return;
     }
     setSaving(true);
     try {
-      await api("/api/products/products/", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          brand,
-          barcode: barcode || null,
-          category: categoryId ? Number(categoryId) : null,
-          tracking_method: trackingMethod,
-          cost_price: costPrice || "0",
-          selling_price: sellingPrice || "0",
-        }),
-      });
-      toast.success("Product added.");
+      const body = {
+        name,
+        brand,
+        barcode: barcode || null,
+        category: categoryId ? Number(categoryId) : null,
+        tracking_method: trackingMethod,
+        cost_price: costPrice || "0",
+        selling_price: sellingPrice || "0",
+      };
+      if (editingId) {
+        await api(`/api/products/products/${editingId}/`, { method: "PATCH", body: JSON.stringify(body) });
+        toast.success("Product updated.");
+      } else {
+        await api("/api/products/products/", { method: "POST", body: JSON.stringify(body) });
+        toast.success("Product added.");
+      }
       resetForm();
-      setAddOpen(false);
+      setFormOpen(false);
       loadProducts();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Failed to add product.");
+      toast.error(e instanceof ApiError ? e.message : "Failed to save product.");
     } finally {
       setSaving(false);
     }
@@ -146,16 +182,16 @@ export default function ProductsPage() {
           <p className="text-sm text-muted-foreground">Your catalog of phones and accessories.</p>
         </div>
         <Dialog
-          open={addOpen}
+          open={formOpen}
           onOpenChange={(open) => {
-            setAddOpen(open);
+            setFormOpen(open);
             if (!open) resetForm();
           }}
         >
-          <DialogTrigger render={<Button>Add Product</Button>} />
+          <DialogTrigger render={<Button onClick={openAdd}>Add Product</Button>} />
           <DialogContent className="max-w-xl">
             <DialogHeader>
-              <DialogTitle>Add Product</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Product" : "Add Product"}</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
@@ -218,8 +254,8 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              <Button onClick={addProduct} disabled={saving}>
-                {saving ? "Saving..." : "Save Product"}
+              <Button onClick={saveProduct} disabled={saving || loadingEdit}>
+                {saving ? "Saving..." : loadingEdit ? "Loading..." : "Save Product"}
               </Button>
             </div>
           </DialogContent>
@@ -300,7 +336,10 @@ export default function ProductsPage() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
+                      <Pencil className="size-3.5" />
+                    </Button>
                     {admin && (
                       <DeleteButton
                         label={`Product ${p.name}`}
