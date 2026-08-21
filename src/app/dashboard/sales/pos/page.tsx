@@ -101,6 +101,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
   const [discount, setDiscount] = useState("");
+  const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<CheckoutResponse | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -111,7 +112,12 @@ export default function POSPage() {
     (sum, line) => sum + computeDiscountTotal(line.unit_price * line.quantity, line.quantity, line.discounts),
     0
   );
-  const discountAmount = Math.min(Math.max(Number(discount) || 0, 0), cartSubtotal - lineDiscountsTotal);
+  const posNetSubtotal = cartSubtotal - lineDiscountsTotal;
+  const posRawDiscount = Math.max(Number(discount) || 0, 0);
+  const discountAmount = Math.min(
+    discountType === "percent" ? posNetSubtotal * (posRawDiscount / 100) : posRawDiscount,
+    posNetSubtotal
+  );
   const cartTotal = cartSubtotal - lineDiscountsTotal - discountAmount;
 
   async function searchCustomers(q: string) {
@@ -207,7 +213,8 @@ export default function POSPage() {
           unit_price: l.unit_price,
           discounts: l.discounts.filter((d) => Number(d.value) > 0),
         })),
-        discount_amount: discountAmount || undefined,
+        discount_amount: discount ? Number(discount) : undefined,
+        discount_type: discountType,
         payment: {
           method: paymentMethod,
           amount: cartTotal,
@@ -222,6 +229,7 @@ export default function POSPage() {
       setCart([]);
       setPaymentReference("");
       setDiscount("");
+      setDiscountType("fixed");
       setCustomerId(null);
       setCustomerOptions([]);
       toast.success(`Invoice ${result.invoice_number} created.`);
@@ -412,15 +420,39 @@ export default function POSPage() {
             )}
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium">Cart-wide discount</Label>
-              <Input
-                type="number"
-                min={0}
-                max={cartSubtotal}
-                inputMode="decimal"
-                placeholder="0.00"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                />
+                <div className="flex rounded-md border p-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={discountType === "fixed" ? "default" : "ghost"}
+                    className="h-7 px-2"
+                    onClick={() => setDiscountType("fixed")}
+                  >
+                    Rs.
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={discountType === "percent" ? "default" : "ghost"}
+                    className="h-7 px-2"
+                    onClick={() => setDiscountType("percent")}
+                  >
+                    %
+                  </Button>
+                </div>
+              </div>
+              {discountAmount > 0 && discountType === "percent" && (
+                <p className="text-xs text-muted-foreground">= - Rs. {discountAmount.toFixed(2)}</p>
+              )}
             </div>
             <div className="flex items-center justify-between text-lg font-semibold border-t pt-3">
               <span>Total</span>

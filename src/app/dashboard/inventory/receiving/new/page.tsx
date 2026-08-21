@@ -54,6 +54,7 @@ export default function NewReceiptPage() {
   const [productQuery, setProductQuery] = useState("");
   const [productResults, setProductResults] = useState<ProductResult[]>([]);
   const [headerDiscount, setHeaderDiscount] = useState("");
+  const [headerDiscountType, setHeaderDiscountType] = useState<"fixed" | "percent">("fixed");
   const [creating, setCreating] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
 
@@ -137,6 +138,7 @@ export default function NewReceiptPage() {
             discounts: l.discounts.filter((d) => Number(d.value) > 0),
           })),
           discount_amount: Number(headerDiscount) || undefined,
+          discount_type: headerDiscountType,
         }),
       });
       setLastCreated(resp.bill_number);
@@ -145,6 +147,7 @@ export default function NewReceiptPage() {
       setSupplierInvoiceNumber("");
       setSupplierId(null);
       setHeaderDiscount("");
+      setHeaderDiscountType("fixed");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to create invoice.");
     } finally {
@@ -162,7 +165,12 @@ export default function NewReceiptPage() {
     const qty = Number(l.expected_quantity) || 0;
     return sum + computeDiscountTotal(price * qty, qty, l.discounts);
   }, 0);
-  const headerDiscountAmount = Math.min(Math.max(Number(headerDiscount) || 0, 0), subtotal - lineDiscountsTotal);
+  const netSubtotal = subtotal - lineDiscountsTotal;
+  const rawHeaderDiscount = Math.max(Number(headerDiscount) || 0, 0);
+  const headerDiscountAmount = Math.min(
+    headerDiscountType === "percent" ? netSubtotal * (rawHeaderDiscount / 100) : rawHeaderDiscount,
+    netSubtotal
+  );
   const total = subtotal - lineDiscountsTotal - headerDiscountAmount;
 
   return (
@@ -320,10 +328,35 @@ export default function NewReceiptPage() {
                     value={headerDiscount}
                     onChange={(e) => setHeaderDiscount(e.target.value)}
                   />
+                  <div className="flex rounded-md border p-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={headerDiscountType === "fixed" ? "default" : "ghost"}
+                      className="h-7 px-2"
+                      onClick={() => setHeaderDiscountType("fixed")}
+                    >
+                      Rs.
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={headerDiscountType === "percent" ? "default" : "ghost"}
+                      className="h-7 px-2"
+                      onClick={() => setHeaderDiscountType("percent")}
+                    >
+                      %
+                    </Button>
+                  </div>
                 </div>
                 {lineDiscountsTotal > 0 && (
                   <div className="text-sm text-muted-foreground">
                     Line discounts: - Rs. {lineDiscountsTotal.toFixed(2)}
+                  </div>
+                )}
+                {headerDiscountAmount > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Whole-bill discount: - Rs. {headerDiscountAmount.toFixed(2)}
                   </div>
                 )}
                 <div className="text-sm text-muted-foreground">
