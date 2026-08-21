@@ -12,11 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BarChart } from "@/components/charts/bar-chart";
-import { TrendingUp, TrendingDown, Wallet, Package, Receipt, CalendarClock, type LucideIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Package, Receipt, CalendarClock } from "lucide-react";
 import { ErrorState, StatCardSkeletonGrid } from "@/components/data-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeInUp, staggerContainer } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/stat-card";
 
 interface DayRow {
   date: string;
@@ -47,44 +47,6 @@ const PERIODS = [
 function money(v: string | number) {
   const n = Number(v);
   return `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
-function StatCard({
-  label,
-  value,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  tone?: "positive" | "negative" | "neutral";
-  icon: LucideIcon;
-}) {
-  const color =
-    tone === "positive"
-      ? "text-success"
-      : tone === "negative"
-      ? "text-danger"
-      : "";
-  const badgeColor =
-    tone === "positive"
-      ? "bg-success-container text-success"
-      : tone === "negative"
-      ? "bg-danger-container text-danger"
-      : "bg-primary/10 text-primary";
-  return (
-    <Card className="h-full">
-      <CardContent className="flex items-center gap-3">
-        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", badgeColor)}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className={`text-xl font-semibold ${color}`}>{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
 
 export default function ProfitAndLossPage() {

@@ -155,7 +155,12 @@ export default function BillDetailPage() {
             {data.items.map((item) => (
               <div key={item.id} className="rounded-md border p-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{item.product_name}</span>
+                  <Link
+                    href={`/dashboard/inventory/products/detail?id=${item.product}`}
+                    className="font-medium hover:underline"
+                  >
+                    {item.product_name}
+                  </Link>
                   <span className="text-muted-foreground">
                     {item.quantity} &times; Rs. {item.unit_price} = Rs. {item.line_total}
                   </span>
