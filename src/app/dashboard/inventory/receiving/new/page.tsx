@@ -21,7 +21,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { fadeInUp } from "@/lib/motion";
-import { ArrowRight, CheckCircle2, Percent, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Percent, Plus, ScanLine, Trash2 } from "lucide-react";
+import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 
 interface Supplier {
   id: number;
@@ -42,6 +43,17 @@ interface NewInvoiceLine {
   unit_price: string;
   expected_quantity: string;
   discounts: DiscountEntry[];
+  received: boolean;
+  codes: string;
+}
+
+const IMEI_PATTERN = /^\d{15}$/;
+
+function parseCodes(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((c) => c.trim())
+    .filter(Boolean);
 }
 
 export default function NewReceiptPage() {
@@ -57,6 +69,7 @@ export default function NewReceiptPage() {
   const [headerDiscountType, setHeaderDiscountType] = useState<"fixed" | "percent">("fixed");
   const [creating, setCreating] = useState(false);
   const [lastCreated, setLastCreated] = useState<string | null>(null);
+  const [scanningKey, setScanningKey] = useState<string | null>(null);
 
   async function searchSuppliers(q: string) {
     setSupplierSearching(true);
@@ -97,6 +110,8 @@ export default function NewReceiptPage() {
         unit_price: "",
         expected_quantity: p.tracking_method === "none" ? "" : "1",
         discounts: [],
+        received: false,
+        codes: "",
       },
     ]);
     setProductQuery("");
@@ -115,6 +130,28 @@ export default function NewReceiptPage() {
     setLines((prev) => prev.filter((l) => l.key !== key));
   }
 
+  function toggleReceived(key: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, received: !l.received } : l)));
+  }
+
+  function setLineCodes(key: string, codes: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, codes } : l)));
+  }
+
+  function appendScannedCode(key: string, code: string) {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== key) return l;
+        const existing = parseCodes(l.codes);
+        if (existing.includes(code)) {
+          toast.info("Code already scanned for this line.");
+          return l;
+        }
+        return { ...l, codes: [...existing, code].join("\n") };
+      })
+    );
+  }
+
   async function createInvoice() {
     if (!supplierId || lines.length === 0) {
       toast.error("Select a supplier and add at least one line item.");
@@ -123,6 +160,27 @@ export default function NewReceiptPage() {
     if (lines.some((l) => !l.unit_price || !l.expected_quantity)) {
       toast.error("Enter a unit price and expected quantity for every line.");
       return;
+    }
+    for (const l of lines) {
+      if (!l.received || l.tracking_method === "none") continue;
+      const codes = parseCodes(l.codes);
+      if (codes.length !== Number(l.expected_quantity)) {
+        toast.error(
+          `${l.product_name}: marked received now, but ${codes.length} code(s) entered - needs exactly ${l.expected_quantity} to match quantity.`
+        );
+        return;
+      }
+      if (l.tracking_method === "imei") {
+        const bad = codes.find((c) => !IMEI_PATTERN.test(c));
+        if (bad) {
+          toast.error(`${l.product_name}: "${bad}" is not a valid IMEI - must be exactly 15 digits.`);
+          return;
+        }
+      }
+      if (new Set(codes).size !== codes.length) {
+        toast.error(`${l.product_name}: duplicate code entered - each unit needs a unique code.`);
+        return;
+      }
     }
     setCreating(true);
     try {
@@ -136,6 +194,9 @@ export default function NewReceiptPage() {
             unit_price: l.unit_price,
             expected_quantity: l.expected_quantity,
             discounts: l.discounts.filter((d) => Number(d.value) > 0),
+            received: l.received || undefined,
+            codes: l.received && l.tracking_method !== "none" ? parseCodes(l.codes) : undefined,
+            received_quantity: l.received && l.tracking_method === "none" ? l.expected_quantity : undefined,
           })),
           discount_amount: Number(headerDiscount) || undefined,
           discount_type: headerDiscountType,
@@ -272,50 +333,103 @@ export default function NewReceiptPage() {
             <div className="flex flex-col gap-2">
               {lines.map((l) => {
                 const activeDiscounts = l.discounts.filter((d) => Number(d.value) > 0);
+                const codes = parseCodes(l.codes);
+                const expectedCount = Number(l.expected_quantity) || 0;
                 return (
-                  <div key={l.key} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                    <span className="flex-1">
-                      {l.product_name}{" "}
-                      {l.tracking_method !== "none" && (
-                        <Badge variant="outline">{l.tracking_method}</Badge>
-                      )}
-                    </span>
-                    <Input
-                      className="w-28"
-                      placeholder="Unit price"
-                      value={l.unit_price}
-                      onChange={(e) => updateLine(l.key, "unit_price", e.target.value)}
-                      inputMode="decimal"
-                    />
-                    <Input
-                      className="w-28"
-                      placeholder="Expected qty"
-                      value={l.expected_quantity}
-                      onChange={(e) => updateLine(l.key, "expected_quantity", e.target.value)}
-                      inputMode="numeric"
-                    />
-                    <Dialog>
-                      <DialogTrigger
-                        render={
-                          <Button variant="outline" size="sm">
-                            <Percent className="size-3.5" />
-                            {activeDiscounts.length > 0 ? `${activeDiscounts.length} applied` : "Discount"}
-                          </Button>
-                        }
+                  <div key={l.key} className="flex flex-col gap-2 rounded-md border p-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1">
+                        {l.product_name}{" "}
+                        {l.tracking_method !== "none" && (
+                          <Badge variant="outline">{l.tracking_method}</Badge>
+                        )}
+                      </span>
+                      <Input
+                        className="w-28"
+                        placeholder="Unit price"
+                        value={l.unit_price}
+                        onChange={(e) => updateLine(l.key, "unit_price", e.target.value)}
+                        inputMode="decimal"
                       />
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Discounts - {l.product_name}</DialogTitle>
-                        </DialogHeader>
-                        <DiscountEditor value={l.discounts} onChange={(d) => updateLineDiscounts(l.key, d)} />
-                      </DialogContent>
-                    </Dialog>
-                    <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                      <Input
+                        className="w-28"
+                        placeholder="Expected qty"
+                        value={l.expected_quantity}
+                        onChange={(e) => updateLine(l.key, "expected_quantity", e.target.value)}
+                        inputMode="numeric"
+                      />
+                      <Dialog>
+                        <DialogTrigger
+                          render={
+                            <Button variant="outline" size="sm">
+                              <Percent className="size-3.5" />
+                              {activeDiscounts.length > 0 ? `${activeDiscounts.length} applied` : "Discount"}
+                            </Button>
+                          }
+                        />
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Discounts - {l.product_name}</DialogTitle>
+                          </DialogHeader>
+                          <DiscountEditor value={l.discounts} onChange={(d) => updateLineDiscounts(l.key, d)} />
+                        </DialogContent>
+                      </Dialog>
+                      <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={l.received}
+                        onChange={() => toggleReceived(l.key)}
+                        className="size-3.5"
+                      />
+                      Already have these in hand - receive now
+                    </label>
+
+                    {l.received && l.tracking_method !== "none" && (
+                      <div className="flex flex-col gap-1 rounded-md bg-muted/40 p-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            {l.product_name} needs {expectedCount} {l.tracking_method} code(s) -{" "}
+                            <span className={codes.length === expectedCount ? "text-success" : ""}>
+                              {codes.length} entered
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <textarea
+                            className="w-full rounded-md border p-2 text-sm font-mono"
+                            rows={2}
+                            placeholder={`Scan/paste ${l.tracking_method} codes, one per line`}
+                            value={l.codes}
+                            onChange={(e) => setLineCodes(l.key, e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() => setScanningKey(l.key)}
+                            title="Scan with camera"
+                          >
+                            <ScanLine className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
+              <BarcodeScannerDialog
+                open={scanningKey !== null}
+                onOpenChange={(open) => !open && setScanningKey(null)}
+                onScan={(code) => {
+                  if (scanningKey !== null) appendScannedCode(scanningKey, code);
+                }}
+              />
               <div className="flex flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
                   <Label className="text-sm text-muted-foreground">Whole-bill discount</Label>
