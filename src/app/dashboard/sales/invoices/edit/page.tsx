@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry } from "@/components/discount-editor";
 import { TrackingCodeEditor } from "@/components/tracking-code-editor";
+import { TrackingUnitPicker } from "@/components/tracking-unit-picker";
 import { LoadingState, ErrorState } from "@/components/data-state";
 import { ArrowLeft, Percent, Plus, Trash2 } from "lucide-react";
 
@@ -83,6 +84,7 @@ export default function EditInvoicePage() {
   const [saving, setSaving] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [productResults, setProductResults] = useState<ProductResult[]>([]);
+  const [pickerProduct, setPickerProduct] = useState<ProductResult | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -135,7 +137,10 @@ export default function EditInvoicePage() {
 
   function addItem(p: ProductResult) {
     if (p.tracking_method !== "none") {
-      toast.error("Tracked items (IMEI/serial) can't be added here - use POS for new phones.");
+      // Tracked (IMEI/serial) products can't just take a quantity - open a picker so
+      // the user selects the specific unit(s) already in stock to sell, one line per
+      // unit. Untracked accessories (chargers, cases, ...) skip straight to adding below.
+      setPickerProduct(p);
       return;
     }
     setItems((prev) => [
@@ -151,6 +156,27 @@ export default function EditInvoicePage() {
         quantity: "1",
         discounts: [],
       },
+    ]);
+    setProductQuery("");
+    setProductResults([]);
+  }
+
+  function addTrackedUnits(units: { id: number; identifier: string }[]) {
+    const p = pickerProduct;
+    if (!p) return;
+    setItems((prev) => [
+      ...prev,
+      ...units.map((unit) => ({
+        product_id: p.id,
+        product_name: p.name,
+        product_tracking_method: p.tracking_method,
+        tracking_unit_id: unit.id,
+        tracking_identifier: unit.identifier,
+        tracking_status: "available",
+        unit_price: p.selling_price,
+        quantity: "1",
+        discounts: [],
+      })),
     ]);
     setProductQuery("");
     setProductResults([]);
@@ -307,7 +333,9 @@ export default function EditInvoicePage() {
                 ))}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">To add a new phone/IMEI-tracked item, use POS for a new sale instead.</p>
+            <p className="text-xs text-muted-foreground">
+              Adding a phone/IMEI-tracked product will ask you to pick the specific unit(s) in stock to sell.
+            </p>
           </div>
 
           <Button onClick={save} disabled={saving} className="w-fit">
@@ -315,6 +343,16 @@ export default function EditInvoicePage() {
           </Button>
         </CardContent>
       </Card>
+
+      {pickerProduct && (
+        <TrackingUnitPicker
+          open={!!pickerProduct}
+          onOpenChange={(open) => !open && setPickerProduct(null)}
+          productId={pickerProduct.id}
+          productName={pickerProduct.name}
+          onConfirm={addTrackedUnits}
+        />
+      )}
     </div>
   );
 }
