@@ -15,7 +15,8 @@ import { ApiError } from "@/lib/api";
 
 /** Row-level delete action - Owner/Manager only (backend enforces regardless, callers
  * should only render this when lib/roles.ts's isAdmin(user) is true). Deletes are soft
- * (recycle bin), never permanent, so the confirmation copy reflects that. */
+ * (recycle bin) but immediately reverse stock/tracking/ledger side effects, so the
+ * confirmation copy warns about that rather than implying it's a harmless no-op. */
 export function DeleteButton({
   label,
   onDelete,
@@ -56,8 +57,11 @@ export function DeleteButton({
           <DialogTitle>Delete {label}?</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-destructive">
+            This immediately reverses its effect on stock, tracking, and ledger balances - not just a display change.
+          </p>
           <p className="text-sm text-muted-foreground">
-            This moves it to the Recycle Bin - it can be restored later, or permanently purged from there.
+            It moves to the Recycle Bin and can be restored later (which correctly re-applies those effects), or permanently purged from there.
           </p>
           <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
             {deleting ? "Deleting..." : "Delete"}
