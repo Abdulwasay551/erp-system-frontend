@@ -22,6 +22,8 @@ import {
 import { ErrorState } from "@/components/data-state";
 import { LogoLoader } from "@/components/logo-loader";
 import { BarChart } from "@/components/charts/bar-chart";
+import { FunnelChart, type FunnelStage } from "@/components/charts/funnel-chart";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { cn } from "@/lib/utils";
 import { fadeInUp, staggerContainer } from "@/lib/motion";
 
@@ -113,40 +115,66 @@ function StatCard({
   );
 }
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [trend, setTrend] = useState<DayRow[]>([]);
+  const [funnel, setFunnel] = useState<FunnelStage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState(today());
+  const [dateTo, setDateTo] = useState(today());
 
   function load() {
     setLoading(true);
     setError(null);
-    api<DashboardStats>("/api/analytics/dashboard/")
+    const range = `date_from=${dateFrom}&date_to=${dateTo}`;
+    api<DashboardStats>(`/api/analytics/dashboard/?${range}`)
       .then(setStats)
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load dashboard."))
       .finally(() => setLoading(false));
-    api<TopProduct[]>("/api/analytics/top-products/?days=30&limit=5")
+    api<TopProduct[]>(`/api/analytics/top-products/?${range}&limit=5`)
       .then(setTopProducts)
       .catch(() => toast.error("Failed to load top products."));
     api<LowStockItem[]>("/api/analytics/low-stock-items/")
       .then(setLowStock)
       .catch(() => toast.error("Failed to load low stock items."));
-    api<{ days: DayRow[] }>("/api/analytics/profit-report/?days=7")
+    api<{ days: DayRow[] }>(`/api/analytics/profit-report/?${range}`)
       .then((r) => setTrend(r.days))
       .catch(() => {});
+    api<{ stages: FunnelStage[] }>(`/api/analytics/sales-funnel/?${range}`)
+      .then((r) => setFunnel(r.stages))
+      .catch(() => toast.error("Failed to load sales funnel."));
   }
 
   useEffect(load, []);
+
+  const isToday = dateFrom === today() && dateTo === today();
 
   if (loading) return <LogoLoader label="Loading dashboard..." />;
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+          onApply={load}
+          presets={[
+            { label: "Today", days: 1 },
+            { label: "7d", days: 7 },
+            { label: "30d", days: 30 },
+            { label: "90d", days: 90 },
+          ]}
+        />
+      </div>
       {stats && (
         <motion.div
           variants={staggerContainer}
@@ -154,8 +182,8 @@ export default function DashboardPage() {
           animate="visible"
           className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
         >
-          <HeroStatCard label="Today's Sales" value={`Rs. ${stats.todays_sales_total}`} href="/dashboard/sales/invoices" />
-          <StatCard label="Today's Sales Count" value={stats.todays_sales_count} href="/dashboard/sales/invoices" icon={Receipt} />
+          <HeroStatCard label={isToday ? "Today's Sales" : "Sales in Range"} value={`Rs. ${stats.todays_sales_total}`} href="/dashboard/sales/invoices" />
+          <StatCard label={isToday ? "Today's Sales Count" : "Sales Count in Range"} value={stats.todays_sales_count} href="/dashboard/sales/invoices" icon={Receipt} />
           <StatCard
             label="Customer Outstanding"
             value={`Rs. ${stats.customer_outstanding_total}`}
@@ -187,28 +215,43 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {trend.length > 0 && (
-        <Card className="animate-in fade-in duration-500">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="size-4 text-success" /> Revenue - Last 7 Days
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarChart
-              categories={trend.map((d) => d.date.slice(5))}
-              series={[{ label: "Revenue", color: "var(--color-chart-1)", data: trend.map((d) => Number(d.revenue)) }]}
-              formatValue={(v) => `Rs. ${v.toLocaleString()}`}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {trend.length > 0 && (
+          <Card className="animate-in fade-in duration-500">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <TrendingUp className="size-4 text-success" /> Revenue ({dateFrom} to {dateTo})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BarChart
+                categories={trend.map((d) => d.date.slice(5))}
+                series={[{ label: "Revenue", color: "var(--color-chart-1)", data: trend.map((d) => Number(d.revenue)) }]}
+                formatValue={(v) => `Rs. ${v.toLocaleString()}`}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {funnel.length > 0 && (
+          <Card className="animate-in fade-in duration-500">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Receipt className="size-4 text-primary" /> Sales Funnel ({dateFrom} to {dateTo})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FunnelChart stages={funnel} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="animate-in fade-in duration-500">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <Trophy className="size-4 text-amber-500" /> Top Products (30 days)
+              <Trophy className="size-4 text-amber-500" /> Top Products ({dateFrom} to {dateTo})
             </CardTitle>
           </CardHeader>
           <CardContent>
