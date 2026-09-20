@@ -17,6 +17,7 @@ import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
 import { InfoTooltip } from "@/components/info-tooltip";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { FileText, Receipt, Undo2, Download, Pencil } from "lucide-react";
 import {
   Table,
@@ -93,6 +94,8 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("-invoice_date");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [payFor, setPayFor] = useState<Invoice | null>(null);
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
@@ -110,6 +113,8 @@ export default function InvoicesPage() {
   function load() {
     const params = new URLSearchParams({ page: String(page), ordering });
     if (statusFilter !== "all") params.set("status", statusFilter);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     api<Paginated<Invoice>>(`/api/sales/invoices/?${params}`)
       .then((data) => {
         setInvoices(data.results);
@@ -175,32 +180,44 @@ export default function InvoicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Invoices</h1>
           <p className="text-sm text-muted-foreground">All sales invoices and their payment status.</p>
         </div>
-        <Select
-          items={Object.fromEntries(STATUS_FILTERS.map((s) => [s.value, s.label]))}
-          value={statusFilter}
-          onValueChange={(v) => {
-            if (v) {
-              setStatusFilter(v);
+        <div className="flex flex-wrap items-end gap-2">
+          <DateRangeFilter
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            onApply={() => {
               setPage(1);
-            }
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_FILTERS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              load();
+            }}
+          />
+          <Select
+            items={Object.fromEntries(STATUS_FILTERS.map((s) => [s.value, s.label]))}
+            value={statusFilter}
+            onValueChange={(v) => {
+              if (v) {
+                setStatusFilter(v);
+                setPage(1);
+              }
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTERS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>

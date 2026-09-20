@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateRangeFilter } from "@/components/date-range-filter";
 
 const STATUS_FILTERS = [
   { value: "all", label: "All Statuses" },
@@ -75,6 +76,8 @@ export default function AllBillsPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [receivedFilter, setReceivedFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [downloadingFor, setDownloadingFor] = useState<number | null>(null);
   const searchParams = useSearchParams();
@@ -87,6 +90,8 @@ export default function AllBillsPage() {
     if (query) params.set("search", query);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (receivedFilter !== "all") params.set("goods_received", receivedFilter);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     api<Paginated<Bill>>(`/api/purchase/bills/?${params}`)
       .then((data) => {
         setBills(data.results);
@@ -128,7 +133,7 @@ export default function AllBillsPage() {
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
         <Card>
           <CardContent className="flex flex-col gap-3 pt-6">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-end gap-2">
               <Input
                 placeholder="Search bill # or supplier..."
                 value={query}
@@ -140,6 +145,16 @@ export default function AllBillsPage() {
                   }
                 }}
                 className="max-w-sm"
+              />
+              <DateRangeFilter
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                onApply={() => {
+                  setPage(1);
+                  load();
+                }}
               />
               <Select
                 items={Object.fromEntries(STATUS_FILTERS.map((s) => [s.value, s.label]))}

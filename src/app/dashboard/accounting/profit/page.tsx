@@ -4,19 +4,13 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { BarChart } from "@/components/charts/bar-chart";
 import { TrendingUp, TrendingDown, Wallet, Package, Receipt, CalendarClock } from "lucide-react";
 import { ErrorState, StatCardSkeletonGrid } from "@/components/data-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeInUp, staggerContainer } from "@/lib/motion";
 import { StatCard } from "@/components/stat-card";
+import { DateRangeFilter } from "@/components/date-range-filter";
 
 interface DayRow {
   date: string;
@@ -38,19 +32,21 @@ interface ProfitReport {
   };
 }
 
-const PERIODS = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-];
-
 function money(v: string | number) {
   const n = Number(v);
   return `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - (n - 1));
+  return d.toISOString().slice(0, 10);
+};
+
 export default function ProfitAndLossPage() {
-  const [period, setPeriod] = useState("30");
+  const [dateFrom, setDateFrom] = useState(daysAgo(30));
+  const [dateTo, setDateTo] = useState(todayStr());
   const [report, setReport] = useState<ProfitReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +54,13 @@ export default function ProfitAndLossPage() {
   function load() {
     setLoading(true);
     setError(null);
-    api<ProfitReport>(`/api/analytics/profit-report/?days=${period}`)
+    api<ProfitReport>(`/api/analytics/profit-report/?date_from=${dateFrom}&date_to=${dateTo}`)
       .then(setReport)
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load profit report."))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [period]);
+  useEffect(load, []);
 
   const netProfit = report ? Number(report.totals.net_profit) : 0;
   const today = report && report.days.length > 0 ? report.days[report.days.length - 1] : null;
@@ -77,22 +73,18 @@ export default function ProfitAndLossPage() {
           <h1 className="text-xl font-semibold">Profit &amp; Loss</h1>
           <p className="text-sm text-muted-foreground">Revenue minus cost of goods sold minus overhead expenses.</p>
         </div>
-        <Select
-          items={Object.fromEntries(PERIODS.map((p) => [p.value, p.label]))}
-          value={period}
-          onValueChange={(v) => v && setPeriod(v)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIODS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>
-                {p.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+          onApply={load}
+          presets={[
+            { label: "7d", days: 7 },
+            { label: "30d", days: 30 },
+            { label: "90d", days: 90 },
+          ]}
+        />
       </div>
 
       {loading && (
