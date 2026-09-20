@@ -82,21 +82,24 @@ export function TrackingUnitPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, productId]);
 
-  function checkFormat(q: string): boolean {
-    setFormatError(null);
-    if (trackingMethod === "imei" && /^\d+$/.test(q.trim()) && q.trim().length !== IMEI_LENGTH) {
-      setFormatError(`An IMEI must be exactly ${IMEI_LENGTH} digits (got ${q.trim().length}).`);
-      return false;
-    }
-    return true;
+  // Non-blocking hint only - searching by the last few digits of an IMEI is a normal,
+  // deliberate way to find a unit (matched via substring on the backend), so a query
+  // that isn't 15 digits must never prevent the search itself from running. Only warn
+  // when the length is close enough to 15 that it looks like an attempted full IMEI
+  // with a typo, not a genuine short/partial lookup.
+  function checkFormat(q: string) {
+    const trimmed = q.trim();
+    const looksLikeAttempt = /^\d+$/.test(trimmed) && trimmed.length >= 10;
+    setFormatError(
+      trackingMethod === "imei" && looksLikeAttempt && trimmed.length !== IMEI_LENGTH
+        ? `An IMEI must be exactly ${IMEI_LENGTH} digits (got ${trimmed.length}) - searching anyway as a partial match.`
+        : null
+    );
   }
 
   async function load(q: string) {
     setConflict(null);
-    if (!checkFormat(q)) {
-      setUnits([]);
-      return;
-    }
+    checkFormat(q);
     setLoading(true);
     try {
       const qs = new URLSearchParams({ product: String(productId), status: "available" });
