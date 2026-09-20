@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { DeleteButton } from "@/components/delete-button";
 
 interface Supplier {
@@ -351,7 +352,12 @@ export default function SuppliersPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>City</TableHead>
-                <TableHead className="text-right">Outstanding</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Outstanding
+                    <InfoTooltip>Total amount you currently owe this supplier: bills received, minus payments you made and returns/debit notes issued.</InfoTooltip>
+                  </span>
+                </TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>

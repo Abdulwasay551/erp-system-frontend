@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Download, Pencil, Undo2 } from "lucide-react";
+import { InfoTooltip } from "@/components/info-tooltip";
 
 interface InvoiceItemDetail {
   id: number;
@@ -136,8 +137,9 @@ export default function InvoiceDetailPage() {
             <span>
               Status: <StatusBadge status={data.status} />
             </span>
-            <span>
+            <span className="inline-flex items-center gap-1">
               Outstanding: <span className="text-foreground">Rs. {data.outstanding_amount}</span>
+              <InfoTooltip>Total &minus; Paid for this invoice - what the customer still owes on it specifically.</InfoTooltip>
             </span>
           </div>
 

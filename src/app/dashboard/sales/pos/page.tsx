@@ -41,6 +41,7 @@ import {
 import { DiscountEditor, DiscountEntry, computeDiscountTotal } from "@/components/discount-editor";
 import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 import { TrackingUnitPicker } from "@/components/tracking-unit-picker";
+import { InfoTooltip } from "@/components/info-tooltip";
 
 interface Customer {
   id: number;
@@ -584,9 +585,10 @@ export default function POSPage() {
               <p>
                 <span className="text-muted-foreground">Total: </span>Rs. {lastInvoice.total}
               </p>
-              <p>
+              <p className="inline-flex items-center gap-1">
                 <span className="text-muted-foreground">Outstanding: </span>Rs.{" "}
                 {lastInvoice.outstanding_amount}
+                <InfoTooltip>Total &minus; Paid for this invoice - what the customer still owes on it specifically.</InfoTooltip>
               </p>
               <DropdownMenu>
                 <DropdownMenuTrigger

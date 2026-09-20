@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { FileText, Receipt, Undo2, Download, Pencil } from "lucide-react";
 import {
   Table,
@@ -219,7 +220,12 @@ export default function InvoicesPage() {
                     Total
                   </SortableHead>
                   <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
+                  <TableHead className="text-right">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      Outstanding
+                      <InfoTooltip>Total &minus; Paid for this invoice - what the customer still owes on it specifically.</InfoTooltip>
+                    </span>
+                  </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead />
                 </TableRow>

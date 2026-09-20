@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, DollarSign, FileText, TrendingUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, DollarSign, FileText, TrendingUp } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -33,6 +33,14 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { InfoTooltip } from "@/components/info-tooltip";
+import { cn } from "@/lib/utils";
 
 interface Customer {
   id: number;
@@ -63,6 +71,28 @@ interface LedgerEntry {
   debit_amount: string;
   credit_amount: string;
   balance: string;
+}
+
+interface LedgerDetailItem {
+  product_name: string;
+  quantity: string;
+  unit_price: string;
+  line_total: string;
+  tracking_identifier?: string | null;
+  tracking_units?: { id: number; code: string | null; status: string }[];
+}
+
+interface LedgerDetail {
+  kind: "invoice" | "bill" | "payment";
+  number: string;
+  status?: string;
+  total?: string;
+  paid_amount?: string;
+  method?: string;
+  reference?: string;
+  date?: string;
+  amount?: string;
+  items?: LedgerDetailItem[];
 }
 
 interface ListPage<T> {
@@ -105,6 +135,9 @@ export default function CustomerDetailPage() {
   const [ledgerDateFrom, setLedgerDateFrom] = useState("");
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [expandedLedgerId, setExpandedLedgerId] = useState<number | null>(null);
+  const [ledgerDetails, setLedgerDetails] = useState<Record<number, LedgerDetail | null>>({});
+  const [loadingDetailId, setLoadingDetailId] = useState<number | null>(null);
 
   const [payments, setPayments] = useState<ListPage<LedgerEntry> | null>(null);
   const [paymentsPage, setPaymentsPage] = useState(1);
@@ -182,18 +215,38 @@ export default function CustomerDetailPage() {
       .catch(() => toast.error("Failed to load analytics."));
   }, [id, tab]);
 
-  async function downloadLedgerPdf() {
+  async function downloadLedgerPdf(extended: boolean) {
     if (!id) return;
     setDownloadingPdf(true);
     try {
       const params = new URLSearchParams();
       if (ledgerDateFrom) params.set("date_from", ledgerDateFrom);
       if (ledgerDateTo) params.set("date_to", ledgerDateTo);
+      if (extended) params.set("extended", "true");
       await openPdf(`/api/crm/customers/${id}/ledger/pdf/?${params}`);
     } catch {
       toast.error("Failed to generate ledger PDF.");
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  async function toggleLedgerRow(entryId: number) {
+    if (expandedLedgerId === entryId) {
+      setExpandedLedgerId(null);
+      return;
+    }
+    setExpandedLedgerId(entryId);
+    if (entryId in ledgerDetails) return;
+    setLoadingDetailId(entryId);
+    try {
+      const data = await api<{ detail: LedgerDetail | null }>(`/api/crm/customers/${id}/ledger/${entryId}/detail/`);
+      setLedgerDetails((prev) => ({ ...prev, [entryId]: data.detail }));
+    } catch {
+      toast.error("Failed to load transaction detail.");
+      setLedgerDetails((prev) => ({ ...prev, [entryId]: null }));
+    } finally {
+      setLoadingDetailId(null);
     }
   }
 
@@ -220,7 +273,10 @@ export default function CustomerDetailPage() {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-muted-foreground">Outstanding</p>
+          <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+            Outstanding
+            <InfoTooltip>Total amount this customer currently owes you: all invoices billed, minus all payments received and credit notes issued.</InfoTooltip>
+          </p>
           <p className={`text-lg font-semibold ${Number(customer.outstanding_balance) > 0 ? "text-warning" : ""}`}>
             {money(customer.outstanding_balance)}
           </p>
@@ -313,50 +369,138 @@ export default function CustomerDetailPage() {
                 <Button size="sm" variant="outline" onClick={() => loadLedger(1)}>
                   Apply Filter
                 </Button>
-                <Button size="sm" variant="outline" className="ml-auto" onClick={downloadLedgerPdf} disabled={downloadingPdf}>
-                  <Download className="size-3.5" /> {downloadingPdf ? "Generating..." : "Download PDF"}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button size="sm" variant="outline" className="ml-auto" disabled={downloadingPdf}>
+                        <Download className="size-3.5" /> {downloadingPdf ? "Generating..." : "Download PDF"}
+                      </Button>
+                    }
+                  />
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => downloadLedgerPdf(false)}>Standard (amounts only)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => downloadLedgerPdf(true)}>
+                      Extended (with invoice/bill line items &amp; tracking)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead />
                     <TableHead>Ref</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-right">
+                      <span className="inline-flex items-center gap-1">
+                        Debit
+                        <InfoTooltip>Added to what the customer owes you - e.g. a new invoice.</InfoTooltip>
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <span className="inline-flex items-center gap-1">
+                        Credit
+                        <InfoTooltip>Reduces what the customer owes you - a payment they made, or a credit note issued to them.</InfoTooltip>
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <span className="inline-flex items-center gap-1">
+                        Balance
+                        <InfoTooltip>Running total the customer owes you after this transaction.</InfoTooltip>
+                      </span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ledger?.results.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
                         No ledger entries in this range.
                       </TableCell>
                     </TableRow>
                   )}
-                  {ledger?.results.map((e) => (
-                    <TableRow
-                      key={e.id}
-                      className={Number(e.debit_amount) > 0 ? "bg-danger-container/40" : Number(e.credit_amount) > 0 ? "bg-success-container/40" : undefined}
-                    >
-                      <TableCell>
-                        {e.reference_type === "invoice" ? (
-                          <Link href={`/dashboard/sales/invoices/detail?id=${e.reference_id}`} className="text-primary underline underline-offset-2 text-xs font-medium">
-                            Invoice
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-muted-foreground capitalize">{e.reference_type.replace("_", " ")}</span>
+                  {ledger?.results.map((e) => {
+                    const expanded = expandedLedgerId === e.id;
+                    const detail = ledgerDetails[e.id];
+                    const expandable = ["invoice", "payment"].includes(e.reference_type);
+                    return (
+                      <>
+                        <TableRow
+                          key={e.id}
+                          className={cn(
+                            expandable && "cursor-pointer",
+                            Number(e.debit_amount) > 0 ? "bg-danger-container/40" : Number(e.credit_amount) > 0 ? "bg-success-container/40" : undefined
+                          )}
+                          onClick={() => expandable && toggleLedgerRow(e.id)}
+                        >
+                          <TableCell className="w-4 pr-0">
+                            {expandable && (
+                              <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {e.reference_type === "invoice" ? (
+                              <Link
+                                href={`/dashboard/sales/invoices/detail?id=${e.reference_id}`}
+                                className="text-primary underline underline-offset-2 text-xs font-medium"
+                                onClick={(ev) => ev.stopPropagation()}
+                              >
+                                Invoice
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-muted-foreground capitalize">{e.reference_type.replace("_", " ")}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{e.transaction_date}</TableCell>
+                          <TableCell>{e.description}</TableCell>
+                          <TableCell className="text-right text-danger">{Number(e.debit_amount) > 0 ? money(e.debit_amount) : "-"}</TableCell>
+                          <TableCell className="text-right text-success">{Number(e.credit_amount) > 0 ? money(e.credit_amount) : "-"}</TableCell>
+                          <TableCell className="text-right">{money(e.balance)}</TableCell>
+                        </TableRow>
+                        {expanded && (
+                          <TableRow key={`${e.id}-detail`} className="bg-muted/30">
+                            <TableCell />
+                            <TableCell colSpan={6} className="py-3">
+                              {loadingDetailId === e.id ? (
+                                <p className="text-xs text-muted-foreground">Loading...</p>
+                              ) : !detail ? (
+                                <p className="text-xs text-muted-foreground">No further detail available.</p>
+                              ) : detail.kind === "payment" ? (
+                                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                                  <span>
+                                    <span className="font-medium text-foreground">Method:</span> {detail.method}
+                                  </span>
+                                  {detail.reference && (
+                                    <span>
+                                      <span className="font-medium text-foreground">Reference:</span> {detail.reference}
+                                    </span>
+                                  )}
+                                  <span>
+                                    <span className="font-medium text-foreground">Payment #:</span> {detail.number}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {detail.items?.map((item, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-xs">
+                                      <span>
+                                        {item.quantity}&times; {item.product_name}
+                                        {item.tracking_identifier && (
+                                          <span className="ml-2 font-mono text-muted-foreground">[{item.tracking_identifier}]</span>
+                                        )}
+                                      </span>
+                                      <span className="text-muted-foreground">{money(item.line_total)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
                         )}
-                      </TableCell>
-                      <TableCell>{e.transaction_date}</TableCell>
-                      <TableCell>{e.description}</TableCell>
-                      <TableCell className="text-right text-danger">{Number(e.debit_amount) > 0 ? money(e.debit_amount) : "-"}</TableCell>
-                      <TableCell className="text-right text-success">{Number(e.credit_amount) > 0 ? money(e.credit_amount) : "-"}</TableCell>
-                      <TableCell className="text-right">{money(e.balance)}</TableCell>
-                    </TableRow>
-                  ))}
+                      </>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {ledger && ledger.total_pages > 1 && (
@@ -400,7 +544,12 @@ export default function CustomerDetailPage() {
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Balance After</TableHead>
+                    <TableHead className="text-right">
+                      <span className="inline-flex items-center gap-1">
+                        Balance After
+                        <InfoTooltip>What the customer still owed you right after this payment was applied.</InfoTooltip>
+                      </span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

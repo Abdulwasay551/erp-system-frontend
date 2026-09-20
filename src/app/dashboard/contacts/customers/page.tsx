@@ -38,6 +38,7 @@ import {
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
+import { InfoTooltip } from "@/components/info-tooltip";
 
 interface Customer {
   id: number;
@@ -300,7 +301,12 @@ export default function CustomersPage() {
                 </SortableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>CNIC</TableHead>
-                <TableHead className="text-right">Outstanding</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Outstanding
+                    <InfoTooltip>Total amount this customer currently owes you: invoices billed, minus payments received and credit notes issued.</InfoTooltip>
+                  </span>
+                </TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
