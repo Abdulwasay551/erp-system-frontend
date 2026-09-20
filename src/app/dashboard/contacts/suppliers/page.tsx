@@ -91,6 +91,7 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("partner__name");
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const [payFor, setPayFor] = useState<Supplier | null>(null);
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
@@ -121,6 +122,7 @@ export default function SuppliersPage() {
   function loadSuppliers() {
     const params = new URLSearchParams({ page: String(page), ordering });
     if (search) params.set("search", search);
+    if (typeFilter !== "all") params.set("supplier_type", typeFilter);
     api<Paginated<Supplier>>(`/api/purchase/suppliers/?${params}`)
       .then((data) => {
         setSuppliers(data.results);
@@ -129,7 +131,7 @@ export default function SuppliersPage() {
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load suppliers."));
   }
 
-  useEffect(loadSuppliers, [page, ordering]);
+  useEffect(loadSuppliers, [page, ordering, typeFilter]);
 
   function openAdd() {
     setEditingId(null);
@@ -327,18 +329,42 @@ export default function SuppliersPage() {
         </Dialog>
       </div>
 
-      <Input
-        placeholder="Search vendors by name, phone, city..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            setPage(1);
-            loadSuppliers();
-          }
-        }}
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Search vendors by name, phone, city..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              setPage(1);
+              loadSuppliers();
+            }
+          }}
+          className="max-w-sm"
+        />
+        <Select
+          items={{ all: "All Types", ...Object.fromEntries(SUPPLIER_TYPES.map((t) => [t.value, t.label])) }}
+          value={typeFilter}
+          onValueChange={(v) => {
+            if (v) {
+              setTypeFilter(v);
+              setPage(1);
+            }
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {SUPPLIER_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
       <Card>
@@ -349,7 +375,9 @@ export default function SuppliersPage() {
                 <SortableHead field="partner__name" ordering={ordering} onSort={setOrdering}>
                   Name
                 </SortableHead>
-                <TableHead>Type</TableHead>
+                <SortableHead field="supplier_type" ordering={ordering} onSort={setOrdering}>
+                  Type
+                </SortableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead className="text-right">

@@ -31,6 +31,13 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Product {
   id: number;
@@ -67,6 +74,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("name");
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -84,6 +92,7 @@ export default function ProductsPage() {
   function loadProducts() {
     const params = new URLSearchParams({ page: String(page), ordering });
     if (query) params.set("search", query);
+    if (categoryFilter !== "all") params.set("category", categoryFilter);
     api<Paginated<Product>>(`/api/products/products/?${params}`)
       .then((data) => {
         setProducts(data.results);
@@ -92,7 +101,7 @@ export default function ProductsPage() {
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load products."));
   }
 
-  useEffect(loadProducts, [page, ordering]);
+  useEffect(loadProducts, [page, ordering, categoryFilter]);
 
   useEffect(() => {
     api<Category[] | { results: Category[] }>("/api/products/categories/")
@@ -267,18 +276,42 @@ export default function ProductsPage() {
           <CardTitle className="text-sm">Catalog</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Input
-            placeholder="Search by name, SKU, brand..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                setPage(1);
-                loadProducts();
-              }
-            }}
-            className="max-w-sm"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Search by name, SKU, brand..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setPage(1);
+                  loadProducts();
+                }
+              }}
+              className="max-w-sm"
+            />
+            <Select
+              items={{ all: "All Categories", ...Object.fromEntries(categories.map((c) => [String(c.id), c.name])) }}
+              value={categoryFilter}
+              onValueChange={(v) => {
+                if (v) {
+                  setCategoryFilter(v);
+                  setPage(1);
+                }
+              }}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -288,9 +321,13 @@ export default function ProductsPage() {
                 <SortableHead field="name" ordering={ordering} onSort={setOrdering}>
                   Name
                 </SortableHead>
-                <TableHead>Category</TableHead>
+                <SortableHead field="category__name" ordering={ordering} onSort={setOrdering}>
+                  Category
+                </SortableHead>
                 <TableHead>Tracking</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
+                <SortableHead field="cost_price" ordering={ordering} onSort={setOrdering} className="text-right">
+                  Cost
+                </SortableHead>
                 <SortableHead field="selling_price" ordering={ordering} onSort={setOrdering} className="text-right">
                   Selling
                 </SortableHead>
