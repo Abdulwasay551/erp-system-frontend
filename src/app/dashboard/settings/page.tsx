@@ -64,6 +64,8 @@ export default function SettingsPage() {
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("email");
   const [roles, setRoles] = useState<Role[]>([]);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,6 +104,8 @@ export default function SettingsPage() {
 
   function loadUsers() {
     const params = new URLSearchParams({ page: String(page), ordering });
+    if (roleFilter !== "all") params.set("role", roleFilter);
+    if (activeFilter !== "all") params.set("is_active", activeFilter);
     api<Paginated<StaffUser>>(`/api/auth/users/?${params}`)
       .then((data) => {
         setUsers(data.results);
@@ -110,7 +114,7 @@ export default function SettingsPage() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load users."));
   }
 
-  useEffect(loadUsers, [page, ordering]);
+  useEffect(loadUsers, [page, ordering, roleFilter, activeFilter]);
 
   useEffect(() => {
     api<Paginated<Role>>("/api/auth/roles/")
@@ -285,7 +289,50 @@ export default function SettingsPage() {
             {error ? error : "Manager/Owner only - staff account list"}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              items={{ all: "All Roles", ...Object.fromEntries(roles.map((r) => [String(r.id), r.name])) }}
+              value={roleFilter}
+              onValueChange={(v) => {
+                if (v) {
+                  setRoleFilter(v);
+                  setPage(1);
+                }
+              }}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              items={{ all: "All", true: "Active", false: "Inactive" }}
+              value={activeFilter}
+              onValueChange={(v) => {
+                if (v) {
+                  setActiveFilter(v);
+                  setPage(1);
+                }
+              }}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="true">Active</SelectItem>
+                <SelectItem value="false">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
