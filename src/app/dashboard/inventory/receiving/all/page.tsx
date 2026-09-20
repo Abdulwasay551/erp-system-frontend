@@ -25,6 +25,31 @@ import { LoadingState, ErrorState } from "@/components/data-state";
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const STATUS_FILTERS = [
+  { value: "all", label: "All Statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "submitted", label: "Submitted" },
+  { value: "approved", label: "Approved" },
+  { value: "partially_paid", label: "Partially Paid" },
+  { value: "paid", label: "Paid" },
+  { value: "overdue", label: "Overdue" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+const RECEIVED_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "true", label: "Received" },
+  { value: "false", label: "Pending" },
+];
 
 interface Bill {
   id: number;
@@ -47,6 +72,9 @@ export default function AllBillsPage() {
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("-bill_date");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [receivedFilter, setReceivedFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const [downloadingFor, setDownloadingFor] = useState<number | null>(null);
   const searchParams = useSearchParams();
@@ -56,6 +84,9 @@ export default function AllBillsPage() {
   function load() {
     setError(null);
     const params = new URLSearchParams({ page: String(page), ordering });
+    if (query) params.set("search", query);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (receivedFilter !== "all") params.set("goods_received", receivedFilter);
     api<Paginated<Bill>>(`/api/purchase/bills/?${params}`)
       .then((data) => {
         setBills(data.results);
@@ -64,7 +95,7 @@ export default function AllBillsPage() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load bills."));
   }
 
-  useEffect(load, [page, ordering]);
+  useEffect(load, [page, ordering, statusFilter, receivedFilter]);
 
   useEffect(() => {
     if (highlightId && bills) {
@@ -96,12 +127,72 @@ export default function AllBillsPage() {
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="flex flex-col gap-3 pt-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Search bill # or supplier..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setPage(1);
+                    load();
+                  }
+                }}
+                className="max-w-sm"
+              />
+              <Select
+                items={Object.fromEntries(STATUS_FILTERS.map((s) => [s.value, s.label]))}
+                value={statusFilter}
+                onValueChange={(v) => {
+                  if (v) {
+                    setStatusFilter(v);
+                    setPage(1);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={Object.fromEntries(RECEIVED_FILTERS.map((s) => [s.value, s.label]))}
+                value={receivedFilter}
+                onValueChange={(v) => {
+                  if (v) {
+                    setReceivedFilter(v);
+                    setPage(1);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECEIVED_FILTERS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Bill #</TableHead>
-                  <TableHead>Supplier</TableHead>
+                  <SortableHead field="bill_number" ordering={ordering} onSort={setOrdering}>
+                    Bill #
+                  </SortableHead>
+                  <SortableHead field="supplier__partner__name" ordering={ordering} onSort={setOrdering}>
+                    Supplier
+                  </SortableHead>
                   <SortableHead field="bill_date" ordering={ordering} onSort={setOrdering}>
                     Date
                   </SortableHead>
