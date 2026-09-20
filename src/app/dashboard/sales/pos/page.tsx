@@ -102,6 +102,8 @@ export default function POSPage() {
   const [customerSearching, setCustomerSearching] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [saleDate, setSaleDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState("");
   const [discount, setDiscount] = useState("");
   const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
   const [checkingOut, setCheckingOut] = useState(false);
@@ -289,6 +291,8 @@ export default function POSPage() {
     try {
       const payload = {
         customer_id: customerId ? Number(customerId) : undefined,
+        invoice_date: saleDate || undefined,
+        notes: description || undefined,
         items: cart.map((l) => ({
           product_id: l.product_id,
           tracking_id: l.tracking_id ?? undefined,
@@ -311,6 +315,8 @@ export default function POSPage() {
       setLastInvoice(result);
       setCart([]);
       setPaymentReference("");
+      setSaleDate(new Date().toISOString().slice(0, 10));
+      setDescription("");
       setDiscount("");
       setDiscountType("fixed");
       setCustomerId(null);
@@ -572,6 +578,10 @@ export default function POSPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Sale date</label>
+              <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
               <label className="text-sm font-medium">Payment method</label>
               <Select
                 items={Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label]))}
@@ -596,6 +606,14 @@ export default function POSPage() {
                 placeholder="Transaction ID, cheque no..."
                 value={paymentReference}
                 onChange={(e) => setPaymentReference(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Description (optional)</label>
+              <Input
+                placeholder="Note about this sale..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
             <Button
