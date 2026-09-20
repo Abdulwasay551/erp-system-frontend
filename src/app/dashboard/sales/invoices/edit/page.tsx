@@ -350,6 +350,7 @@ export default function EditInvoicePage() {
           onOpenChange={(open) => !open && setPickerProduct(null)}
           productId={pickerProduct.id}
           productName={pickerProduct.name}
+          trackingMethod={pickerProduct.tracking_method}
           onConfirm={addTrackedUnits}
         />
       )}

@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { DiscountEditor, DiscountEntry, computeDiscountTotal } from "@/components/discount-editor";
 import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
+import { TrackingUnitPicker } from "@/components/tracking-unit-picker";
 
 interface Customer {
   id: number;
@@ -106,6 +107,7 @@ export default function POSPage() {
   const [lastInvoice, setLastInvoice] = useState<CheckoutResponse | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [pickerProduct, setPickerProduct] = useState<SearchResult | null>(null);
 
   const cartSubtotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
   const lineDiscountsTotal = cart.reduce(
@@ -153,7 +155,10 @@ export default function POSPage() {
   }
 
   function addToCart(item: SearchResult) {
-    const key = item.tracking_id ? `t-${item.tracking_id}` : `p-${item.product_id}`;
+    // Untracked only - tracked products always go through the picker (openTrackingPicker
+    // below) so a specific unit is always a deliberate, explicit choice, never whichever
+    // row a name/scan search happened to match first.
+    const key = `p-${item.product_id}`;
     setCart((prev) => {
       if (prev.some((l) => l.key === key)) {
         toast.info("Already in cart.");
@@ -164,13 +169,13 @@ export default function POSPage() {
         {
           key,
           product_id: item.product_id,
-          tracking_id: item.tracking_id,
+          tracking_id: null,
           name: item.variant ? `${item.name} (${item.variant})` : item.name,
           identifier: item.identifier,
           unit_price: parseFloat(item.unit_price),
           avg_purchase_price: parseFloat(item.avg_purchase_price) || 0,
           quantity: 1,
-          max_qty: item.tracking_id ? 1 : Number(item.available_qty),
+          max_qty: Number(item.available_qty),
           discounts: [],
         },
       ];
@@ -178,6 +183,47 @@ export default function POSPage() {
     setQuery("");
     setResults([]);
   }
+
+  function addTrackedUnits(units: { id: number; identifier: string }[]) {
+    const item = pickerProduct;
+    if (!item) return;
+    setCart((prev) => {
+      const existingKeys = new Set(prev.map((l) => l.key));
+      const additions = units
+        .filter((u) => !existingKeys.has(`t-${u.id}`))
+        .map((u) => ({
+          key: `t-${u.id}`,
+          product_id: item.product_id,
+          tracking_id: u.id,
+          name: item.variant ? `${item.name} (${item.variant})` : item.name,
+          identifier: u.identifier,
+          unit_price: parseFloat(item.unit_price),
+          avg_purchase_price: parseFloat(item.avg_purchase_price) || 0,
+          quantity: 1,
+          max_qty: 1,
+          discounts: [] as DiscountEntry[],
+        }));
+      if (additions.length < units.length) toast.info("Some selected units were already in the cart.");
+      return [...prev, ...additions];
+    });
+    setQuery("");
+    setResults([]);
+  }
+
+  // Tracked results collapse to one row per product ("N available - Select units")
+  // instead of one row per unit - picking a specific unit is always an explicit step
+  // through the picker, never a single tap on whichever row a search happened to match.
+  const untrackedResults = results.filter((r) => r.tracking_method === "none");
+  const trackedGroups = Object.values(
+    results
+      .filter((r) => r.tracking_method !== "none")
+      .reduce<Record<number, { sample: SearchResult; count: number }>>((acc, r) => {
+        acc[r.product_id] = acc[r.product_id]
+          ? { sample: acc[r.product_id].sample, count: acc[r.product_id].count + 1 }
+          : { sample: r, count: 1 };
+        return acc;
+      }, {})
+  );
 
   function updateQuantity(key: string, quantity: number) {
     setCart((prev) =>
@@ -279,16 +325,32 @@ export default function POSPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {results.map((r) => (
-                    <TableRow key={r.tracking_id ?? `p-${r.product_id}`}>
+                  {trackedGroups.map(({ sample, count }) => (
+                    <TableRow key={`group-${sample.product_id}`}>
+                      <TableCell>
+                        {sample.name}
+                        {sample.variant && <span className="text-muted-foreground"> ({sample.variant})</span>}
+                        <Badge variant="outline" className="ml-2">
+                          {sample.tracking_method}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {count} available
+                      </TableCell>
+                      <TableCell className="text-right">Rs. {sample.unit_price}</TableCell>
+                      <TableCell className="text-right">{count}</TableCell>
+                      <TableCell>
+                        <Button size="sm" onClick={() => setPickerProduct(sample)}>
+                          Select units
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {untrackedResults.map((r) => (
+                    <TableRow key={`p-${r.product_id}`}>
                       <TableCell>
                         {r.name}
                         {r.variant && <span className="text-muted-foreground"> ({r.variant})</span>}
-                        {r.tracking_method !== "none" && (
-                          <Badge variant="outline" className="ml-2">
-                            {r.tracking_method}
-                          </Badge>
-                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{r.identifier}</TableCell>
                       <TableCell className="text-right">Rs. {r.unit_price}</TableCell>
@@ -569,6 +631,18 @@ export default function POSPage() {
           </Card>
         )}
       </div>
+
+      {pickerProduct && (
+        <TrackingUnitPicker
+          open={!!pickerProduct}
+          onOpenChange={(open) => !open && setPickerProduct(null)}
+          productId={pickerProduct.product_id}
+          productName={pickerProduct.name}
+          trackingMethod={pickerProduct.tracking_method}
+          initialQuery={query}
+          onConfirm={addTrackedUnits}
+        />
+      )}
     </div>
   );
 }
