@@ -38,6 +38,8 @@ import {
 import { Pagination } from "@/components/pagination";
 import { SortableHead } from "@/components/sortable-head";
 import { DeleteButton } from "@/components/delete-button";
+import { DateRangeFilter } from "@/components/date-range-filter";
+import { BarChart } from "@/components/charts/bar-chart";
 
 interface Expense {
   id: number;
@@ -74,6 +76,9 @@ const PAYMENT_METHODS = [
 
 const PAGE_SIZE = 25;
 
+const today = () => new Date().toISOString().slice(0, 10);
+const monthStart = () => `${today().slice(0, 7)}-01`;
+
 export default function ExpensesPage() {
   const { user } = useAuth();
   const admin = isAdmin(user);
@@ -83,6 +88,10 @@ export default function ExpensesPage() {
   const [ordering, setOrdering] = useState("-expense_date");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [open, setOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [methodFilter, setMethodFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState(monthStart());
+  const [dateTo, setDateTo] = useState(today());
 
   const [category, setCategory] = useState("rent");
   const [description, setDescription] = useState("");
@@ -91,20 +100,21 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false);
 
   function load() {
-    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-    const params = new URLSearchParams({ page: String(page), ordering });
+    const params = new URLSearchParams({ page: String(page), ordering, date_from: dateFrom, date_to: dateTo });
+    if (categoryFilter !== "all") params.set("category", categoryFilter);
+    if (methodFilter !== "all") params.set("payment_method", methodFilter);
     api<Paginated<Expense>>(`/api/accounting/expenses/?${params}`)
       .then((data) => {
         setExpenses(data.results);
         setCount(data.count);
       })
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expenses."));
-    api<Summary>(`/api/accounting/expenses/summary/?month=${month}`)
+    api<Summary>(`/api/accounting/expenses/summary/?${params}`)
       .then(setSummary)
       .catch((e) => toast.error(e instanceof ApiError ? e.message : "Failed to load expense summary."));
   }
 
-  useEffect(load, [page, ordering]);
+  useEffect(load, [page, ordering, categoryFilter, methodFilter]);
 
   async function addExpense() {
     if (!amount) {
@@ -213,6 +223,67 @@ export default function ExpensesPage() {
         </Dialog>
       </div>
 
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+          onApply={load}
+          presets={[
+            { label: "This month", days: new Date().getDate() },
+            { label: "30d", days: 30 },
+            { label: "90d", days: 90 },
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            items={{ all: "All Categories", ...Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label])) }}
+            value={categoryFilter}
+            onValueChange={(v) => {
+              if (v) {
+                setCategoryFilter(v);
+                setPage(1);
+              }
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c.value} value={c.value}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            items={{ all: "All Methods", ...Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label])) }}
+            value={methodFilter}
+            onValueChange={(v) => {
+              if (v) {
+                setMethodFilter(v);
+                setPage(1);
+              }
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Methods</SelectItem>
+              {PAYMENT_METHODS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {summary && (
         <motion.div
           initial="hidden"
@@ -227,7 +298,7 @@ export default function ExpensesPage() {
                   <Wallet className="size-4" />
                 </span>
                 <div>
-                  <p className="text-sm text-primary-foreground/80">This Month</p>
+                  <p className="text-sm text-primary-foreground/80">Total in Range</p>
                   <p className="text-xl font-semibold">Rs. {summary.grand_total}</p>
                 </div>
               </CardContent>
@@ -249,6 +320,31 @@ export default function ExpensesPage() {
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {summary && summary.by_category.length > 0 && (
+        <Card className="animate-in fade-in duration-500">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Receipt className="size-4 text-primary" /> Spending by Category ({dateFrom} to {dateTo})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              categories={summary.by_category.map(
+                (row) => CATEGORIES.find((c) => c.value === row.category)?.label ?? row.category
+              )}
+              series={[
+                {
+                  label: "Amount",
+                  color: "var(--color-chart-1)",
+                  data: summary.by_category.map((row) => Number(row.total)),
+                },
+              ]}
+              formatValue={(v) => `Rs. ${v.toLocaleString()}`}
+            />
+          </CardContent>
+        </Card>
       )}
 
       <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
