@@ -212,14 +212,18 @@ export default function InvoicesPage() {
                   <SortableHead field="invoice_number" ordering={ordering} onSort={setOrdering}>
                     Invoice #
                   </SortableHead>
-                  <TableHead>Customer</TableHead>
+                  <SortableHead field="customer__name" ordering={ordering} onSort={setOrdering}>
+                    Customer
+                  </SortableHead>
                   <SortableHead field="invoice_date" ordering={ordering} onSort={setOrdering}>
                     Date
                   </SortableHead>
                   <SortableHead field="total" ordering={ordering} onSort={setOrdering} className="text-right">
                     Total
                   </SortableHead>
-                  <TableHead className="text-right">Paid</TableHead>
+                  <SortableHead field="paid_amount" ordering={ordering} onSort={setOrdering} className="text-right">
+                    Paid
+                  </SortableHead>
                   <TableHead className="text-right">
                     <span className="inline-flex items-center justify-end gap-1">
                       Outstanding
