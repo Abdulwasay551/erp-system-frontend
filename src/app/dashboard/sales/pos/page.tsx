@@ -141,6 +141,13 @@ export default function POSPage() {
     setSearching(true);
     try {
       const data = await api<SearchResult[]>(`/api/sales/pos/search/?q=${encodeURIComponent(q)}`);
+      // A scanned IMEI/serial/barcode is already an exact, unambiguous pick of one
+      // specific unit - don't make the user select it again from a list of one, that
+      // defeats the point of scanning.
+      if (data.length === 1 && data[0].tracking_id !== null && data[0].identifier === q.trim()) {
+        addTrackedUnit(data[0]);
+        return;
+      }
       setResults(data);
       if (data.length === 0) toast.info("No matching products found.");
     } catch (e) {
@@ -148,6 +155,35 @@ export default function POSPage() {
     } finally {
       setSearching(false);
     }
+  }
+
+  function addTrackedUnit(item: SearchResult) {
+    if (item.tracking_id == null) return;
+    const key = `t-${item.tracking_id}`;
+    setCart((prev) => {
+      if (prev.some((l) => l.key === key)) {
+        toast.info("Already in cart.");
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          key,
+          product_id: item.product_id,
+          tracking_id: item.tracking_id,
+          name: item.variant ? `${item.name} (${item.variant})` : item.name,
+          identifier: item.identifier,
+          unit_price: parseFloat(item.unit_price),
+          avg_purchase_price: parseFloat(item.avg_purchase_price) || 0,
+          quantity: 1,
+          max_qty: 1,
+          discounts: [],
+        },
+      ];
+    });
+    setQuery("");
+    setResults([]);
+    toast.success(`${item.name} added.`);
   }
 
   function handleScan(code: string) {
