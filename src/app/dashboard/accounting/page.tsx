@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { LineChart, Receipt, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { LineChart, Receipt, Wallet, TrendingUp, TrendingDown, BookOpen } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { ModuleLinkCard } from "@/components/module-link-card";
 import { Card, CardContent } from "@/components/ui/card";
@@ -85,6 +85,12 @@ export default function AccountingModulePage() {
           icon={Receipt}
           title="Expenses"
           description="Record rent, salaries, utilities, and other overhead"
+        />
+        <ModuleLinkCard
+          href="/dashboard/accounting/chart-of-accounts"
+          icon={BookOpen}
+          title="Chart of Accounts"
+          description="Account balances by type, trends over time, and the full account tree"
         />
       </div>
     </div>

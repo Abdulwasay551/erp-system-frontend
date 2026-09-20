@@ -86,6 +86,7 @@ const MODULES: NavModule[] = [
     children: [
       { href: "/dashboard/accounting/profit", label: "Profit & Loss" },
       { href: "/dashboard/accounting/expenses", label: "Expenses" },
+      { href: "/dashboard/accounting/chart-of-accounts", label: "Chart of Accounts" },
     ],
   },
   {
